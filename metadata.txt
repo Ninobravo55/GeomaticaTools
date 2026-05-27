@@ -1,0 +1,85 @@
+[general]
+name=Geomaticape Tools
+description=Landsat C2 L1/L2, Sentinel-2, CBERS-04A, MODIS 09/11/12/13 scale factor per product independently, PCA, spectral indices, supervised + unsupervised classification, band extraction, vector geoprocessing, zonal statistics and multi-point sampling
+version=1.8
+qgisMinimumVersion=3.40
+qgisMaximumVersion=4.99
+author=Geomatica Ambiental
+email=nino@geomatica.pe
+authorUrl=https://www.geomatica.pe/
+
+about=GeomaticaPE is a QGIS plugin developed by Geomatica Ambiental to automate
+    preprocessing and analysis of multispectral satellite imagery and to
+    support common geoprocessing tasks.
+
+    Tools organized into three groups:
+
+    [Conversion]
+    - RS Landsat C2 L1 (SR + LST + PAN, autodetects MSS/TM/ETM/OLI)
+    - Landsat C2 L2 scale factor
+    - Sentinel-2 L1A scale factor
+    - Sentinel-2 L2A scale factor
+
+    [Processing]
+    - CBERS-04A Pansharpening Brovey 2m
+    - Landsat Pansharpening 30m -> 15m (Weighted Brovey)
+    - Multispectral PCA
+    - Spectral indices (17 indices)
+    - Extract bands from multispectral images:
+      detects number of bands
+    - Clip raster by study area:
+    - Combine bands with names
+    - Supervised classification and validation (DT/RF/NB/MLP/KNN).
+    
+    [Geoprocessing]
+    - Create polygons from table (CSV/TXT/XLS/XLSX)
+    - Raster zonal statistics (Excel/CSV)
+    - Extract point values from multiple rasters
+
+    COMPATIBILITY:
+    - Qt5 (PyQt5) and Qt6 (PyQt6) via qgis.PyQt compatibility layer
+    - QGIS 3.40 to 4.99
+
+    REQUIREMENTS - Python modules bundled with QGIS (no installation needed):
+    - numpy           (all tools)
+    - GDAL / osgeo    (all tools)
+    - matplotlib      (QGIS LTR 3.22+; supervised_classification, pca_satellite)
+
+    REQUIREMENTS - External modules NOT bundled with QGIS (must install):
+    - scikit-learn    REQUIRED by: Unsupervised Classification (KMeans,
+                      MiniBatchKMeans, GaussianMixture, Birch, StandardScaler),
+                      Supervised Classification (DecisionTree, RandomForest,
+                      NaiveBayes, MLP, KNN, train_test_split, classification_report),
+                      Multispectral PCA (PCA, StandardScaler, make_pipeline)
+    - pandas          REQUIRED by: Multispectral PCA (variance table),
+                      Create Polygons from Table (read CSV/TXT/XLS/XLSX)
+    - openpyxl        REQUIRED by: Raster Zonal Statistics (export .xlsx),
+                      Extract Point Values (export .xlsx),
+                      Classification Report (export .xlsx with charts),
+                      Create Polygons from Table (read .xlsx)
+
+    Install all external dependencies (run once):
+       python -m pip install --upgrade scikit-learn pandas openpyxl
+
+    Developed and maintained by:
+    Geomatica Ambiental - www.geomatica.pe
+
+    Acknowledgments:
+    - Point Sampling Tool by Borys Jurgiel (GPL v2+) - inspiration for the
+      multi-raster point sampling tool. https://github.com/borysiasty/pointsamplingtool
+
+icon=Icons/logo_geomatica.png
+
+tracker=https://www.geomatica.pe/
+repository=https://www.geomatica.pe/
+homepage=https://www.geomatica.pe/
+category=Raster
+tags=landsat, c2 l1, c2 l2, mss, tm, etm, oli, tirs, dos1, surface reflectance, lst, pansharpening, weighted brovey, brovey, vrt pansharpened, clip raster, cutline, bbox, study area, clipping, sentinel, cbers, pca, ndvi, kmeans, isodata, gmm, birch, supervised classification, decision tree, random forest, extra trees, gradient boosting, naive bayes, mlp, knn, svm, lda, qda, logistic regression, kappa, confusion matrix, balanced accuracy, f1, cross validation, band extraction, band stacking, band combination, multiband, spectral indices, remote sensing, raster, zonal statistics, vector, polygon, csv, xlsx, point sampling
+hasProcessingProvider=yes
+server=False
+experimental=False
+deprecated=False
+
+changelog=1.8
+- [Processing] Spectral Signature: Landsat 5/7/8/9, Sentinel-2, ASTER L1T
+  Extraction by class, mean/min/max, PNG chart, Excel export
