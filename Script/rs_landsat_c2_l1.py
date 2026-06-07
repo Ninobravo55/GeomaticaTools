@@ -1,3 +1,4 @@
+from .geomaticape_algorithm import GeomaticapeAlgorithm
 import os
 import glob
 import gc
@@ -64,32 +65,26 @@ def calc_sr(img, M, A, sun_deg):
 
 
 # ----- Reflectancia de la banda PANCROMATICA -------------------------
-# La PAN se trata especial porque (a) cubre el rango de varias MS sumadas,
-# asi que un percentil 1 calculado sobre la propia PAN resta un dark muy
-# grande y aplana / oscurece toda la imagen; (b) los pixeles de fondo del
-# producto rectificado (DN=0) si se enmascaran como NaN se pierden en la
-# salida y aparecen como huecos.
-#
-# Por defecto usamos TOA puro (sin DOS) y conservamos los DN=0 como 0.0
-# en la salida (sin asignar NoData en el GeoTIFF). Si el usuario pide
-# DOS1, se usa un percentil mas conservador (0.5 %) y se clipea a >= 0.
+# Los píxeles con DN=0 son relleno de borde (fill) del producto L1 y
+# deben tratarse como nodata en la salida. Se convierten a NaN ANTES de
+# llamar a esta función (en processAlgorithm) y aquí se preservan como
+# NaN para que write_geotiff los escriba como nodata=-9999.
 def calc_pan_reflectance(img, M, A, sun_deg, apply_dos=False, dos_pct=0.5):
-    arr = img.astype(np.float32)
+    arr = img.astype(np.float32)       # los NaN de DN=0 se propagan
     toa = M * arr + A
     toa = toa / np.sin(np.deg2rad(sun_deg))
 
     if apply_dos:
+        # Solo usar píxeles finitos y positivos para el dark object
         finite = toa[np.isfinite(toa) & (toa > 0)]
         if finite.size > 0:
             dark = float(np.percentile(finite, dos_pct))
             toa = toa - dark
 
-    # Clipear los valores negativos a 0 para que QGIS no los pinte como
-    # huecos despues de aplicar NoData. Mantenemos los pixeles de fondo
-    # (que llegan como 0 desde el DN) como 0 en la salida.
-    toa = np.where(np.isfinite(toa), toa, 0.0)
-    toa = np.clip(toa, 0.0, None).astype(np.float32)
-    return toa
+    # Clipear valores negativos a 0 en píxeles válidos.
+    # Preservar NaN (borde de escena) — NO reemplazar con 0.0.
+    toa = np.where(np.isfinite(toa), np.clip(toa, 0.0, None), np.nan)
+    return toa.astype(np.float32)
 
 
 # ----- Land Surface Temperature -----
@@ -180,7 +175,9 @@ def read_band_with_profile(path):
     return arr, profile
 
 
-class RSLandSatC2L1(QgsProcessingAlgorithm):
+class RSLandSatC2L1(GeomaticapeAlgorithm):
+    _algorithm_name = "rs_landsat_c2_l1"
+    _icon_name = "landsat.png"
 
     INPUT_FOLDER   = "INPUT_FOLDER"
     PAN_MODE       = "PAN_MODE"
@@ -198,49 +195,33 @@ class RSLandSatC2L1(QgsProcessingAlgorithm):
     # IDENTIFICACION
     # -------------------------------------------------------
 
-    def name(self):
-        return "rs_landsat_c2_l1"
-
     def displayName(self):
-        return "RS LandSat C2 L1 (SR + LST + PAN, deteccion automatica de sensor)"
+        return self.tr("Factor Escala LandSat C2 L1 (SR + LST + PAN)")
 
     def group(self):
-        return "Conversion"
+        return self.tr("Conversion")
 
     def groupId(self):
         return "geomaticape_conversion"
 
-    def icon(self):
-        from qgis.PyQt.QtGui import QIcon
-        return QIcon(os.path.join(os.path.dirname(__file__), "..", "Icons", "landsat.png"))
-
-    def createInstance(self):
-        return RSLandSatC2L1()
-
-    # -------------------------------------------------------
-    # AYUDA
-    # -------------------------------------------------------
-
     def shortHelpString(self):
         return """
-<h3>RS LandSat C2 L1 - Reflectancia de Superficie (DOS1) + LST + PAN</h3>
+<h3>Factor Escala LandSat C2 L1 — SR + LST + PAN</h3>
 <b>Autor:</b> GEOMATICA AMBIENTAL<br>
 <b>Plugin:</b> Geomaticape<br>
-<b>Version:</b> 1.7 (PAN corregido en 1.17)<br><br>
+<b>Version:</b> 1.10<br><br>
 
 <b>Descripcion:</b><br>
 Procesa una escena Landsat <b>Collection 2 Level 1 (DN crudos)</b> aplicando:
 <ul>
-<li>Conversion DN -> Radiancia espectral (TOA): L = M*DN + A</li>
+<li>Conversion DN -&gt; Radiancia espectral (TOA): L = M*DN + A</li>
 <li>Correccion atmosferica DOS1 (sustraccion de objeto oscuro, percentil 1)
     para las bandas <b>multiespectrales</b></li>
 <li>Reflectancia de Superficie por banda multiespectral</li>
 <li>Land Surface Temperature en grados Celsius para la banda termica</li>
-<li><b>Pancromatica</b>: por defecto se calcula como <b>TOA reflectance</b>
-    (sin DOS) para preservar todos los pixeles. Opcionalmente DOS1
-    conservador (percentil 0.5 % + clip a 0). Salida SIN NoData -
-    los pixeles del fondo del producto (DN=0) quedan como 0 en la
-    reflectancia, no como huecos.</li>
+<li><b>Pancromatica</b>: TOA reflectance (sin DOS por defecto). Los píxeles
+    de borde del producto (DN=0) se enmascaran como <b>nodata=-9999</b>
+    y aparecen <b>transparentes</b> en QGIS. Opcionalmente DOS1 conservador.</li>
 </ul>
 
 El sensor se detecta <b>automaticamente</b> leyendo el archivo
@@ -275,7 +256,7 @@ archivo <code>*_MTL.txt</code> y todas las bandas <code>*B*.TIF</code>.<br>
         self.addParameter(
             QgsProcessingParameterFile(
                 self.INPUT_FOLDER,
-                "Carpeta de la escena Landsat Collection 2 Level 1",
+                self.tr("Carpeta de la escena Landsat Collection 2 Level 1"),
                 behavior=QgsProcessingParameterFile.Folder
             )
         )
@@ -283,7 +264,7 @@ archivo <code>*_MTL.txt</code> y todas las bandas <code>*B*.TIF</code>.<br>
         self.addParameter(
             QgsProcessingParameterEnum(
                 self.PAN_MODE,
-                "Modo de la banda Pancromatica (solo OLI)",
+                self.tr("Modo de la banda Pancromatica (solo OLI)"),
                 options=self.PAN_MODE_OPTIONS,
                 defaultValue=0
             )
@@ -292,14 +273,14 @@ archivo <code>*_MTL.txt</code> y todas las bandas <code>*B*.TIF</code>.<br>
         self.addParameter(
             QgsProcessingParameterRasterDestination(
                 self.OUTPUT_MS,
-                "Multiespectral SR (siempre se genera)"
+                self.tr("Multiespectral SR (siempre se genera)")
             )
         )
 
         self.addParameter(
             QgsProcessingParameterRasterDestination(
                 self.OUTPUT_THERMAL,
-                "Termico LST (TM / ETM / OLI - omitir si MSS)",
+                self.tr("Termico LST (TM / ETM / OLI - omitir si MSS)"),
                 optional=True,
                 createByDefault=True
             )
@@ -308,7 +289,7 @@ archivo <code>*_MTL.txt</code> y todas las bandas <code>*B*.TIF</code>.<br>
         self.addParameter(
             QgsProcessingParameterRasterDestination(
                 self.OUTPUT_PAN,
-                "Pancromatico SR (solo OLI / TIRS - omitir en otros sensores)",
+                self.tr("Pancromatico SR (solo OLI / TIRS - omitir en otros sensores)"),
                 optional=True,
                 createByDefault=True
             )
@@ -366,6 +347,7 @@ archivo <code>*_MTL.txt</code> y todas las bandas <code>*B*.TIF</code>.<br>
 
         sensor_up = sensor.upper()
         for b in candidatos:
+            if 'feedback' in locals() and feedback.isCanceled(): break
             name = os.path.basename(b).upper()
 
             if "MSS" in sensor_up:
@@ -405,6 +387,7 @@ archivo <code>*_MTL.txt</code> y todas las bandas <code>*B*.TIF</code>.<br>
 
         feedback.pushInfo(f"Bandas multiespectrales encontradas: {len(ms_bands)}")
         for b in ms_bands:
+            if 'feedback' in locals() and feedback.isCanceled(): break
             feedback.pushInfo(f"  MS  -> {os.path.basename(b)}")
         if thermal_band:
             feedback.pushInfo(f"  TIR -> {os.path.basename(thermal_band)}")
@@ -427,6 +410,7 @@ archivo <code>*_MTL.txt</code> y todas las bandas <code>*B*.TIF</code>.<br>
         ref_profile = None
 
         for b in ms_bands:
+            if 'feedback' in locals() and feedback.isCanceled(): break
             band_num = int(os.path.basename(b).upper().split("_B")[-1].split(".")[0])
 
             if "MSS" in sensor_up:
@@ -518,33 +502,38 @@ archivo <code>*_MTL.txt</code> y todas las bandas <code>*B*.TIF</code>.<br>
             A = p.get(f"REFLECTANCE_ADD_BAND_{band_num}")
 
             if M is not None and A is not None:
-                # No usamos clean_zeros: queremos preservar los DN=0 del
-                # fondo del producto rectificado como dato (saldran como
-                # 0 en la reflectancia, no como NaN/NoData).
                 arr, profile = read_band_with_profile(pan_band)
+
+                # ── Enmascarar DN=0 del borde del producto (fill) ──────────
+                # DN=0 en el producto L1 es relleno (fill) del área fuera de
+                # la escena. Se convierte a NaN ANTES de la conversión TOA
+                # para que esos píxeles salgan como nodata en el GeoTIFF
+                # y aparezcan transparentes en QGIS (no como valor 0).
+                arr = arr.astype(np.float32)
+                arr[arr == 0] = np.nan
+
                 sr_pan = calc_pan_reflectance(
                     arr, float(M), float(A), float(sun),
                     apply_dos=apply_dos_pan,
                     dos_pct=0.5,
                 )
 
-                valid = sr_pan[sr_pan > 0]
+                valid = sr_pan[np.isfinite(sr_pan) & (sr_pan > 0)]
                 if valid.size > 0:
                     feedback.pushInfo(
                         f"  B{band_num} (PAN, {modo_txt}) "
                         f"min={valid.min():.4f}  max={valid.max():.4f}  "
-                        f"pixeles>0={valid.size}"
+                        f"píxeles válidos={valid.size}"
                     )
                 else:
                     feedback.pushInfo(
-                        f"  AVISO: B{band_num} (PAN) no produjo pixeles > 0"
+                        f"  AVISO: B{band_num} (PAN) no produjo píxeles > 0"
                     )
 
-                # Escribir SIN NoData: todos los pixeles quedan como
-                # validos (los del fondo como 0). Esto evita el efecto
-                # "PAN con muchos pixeles sin datos" reportado.
+                # Escribir CON nodata=-9999: los DN=0 originales (borde)
+                # quedan enmascarados y se ven transparentes en QGIS.
                 write_geotiff(out_pan, sr_pan, profile, ["Pan"],
-                              write_nodata=False)
+                              write_nodata=True)
                 feedback.pushInfo(f"  -> Pancromatico: {out_pan}")
             else:
                 feedback.pushInfo("  AVISO: B8 sin coeficientes de reflectancia, se omite PAN.")

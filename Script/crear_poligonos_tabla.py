@@ -1,3 +1,4 @@
+from .geomaticape_algorithm import GeomaticapeAlgorithm
 """
 Crear poligonos a partir de tabla (CSV / TXT / XLS / XLSX)
 ==========================================================
@@ -6,7 +7,7 @@ de una tabla con coordenadas X / Y, un campo de agrupamiento (parcela)
 y un campo de orden (secuencia de vertices).
 
 Autor : Geomatica Ambiental - https://www.geomatica.pe
-Plugin: Geomaticape v1.8
+Plugin: Geomaticape v1.10
 Grupo : Geoprocesamiento
 """
 
@@ -468,7 +469,9 @@ class CrearPoligonosTablaDialog(QDialog):
 # QgsProcessingAlgorithm - permite usarse en la caja de procesos
 # ---------------------------------------------------------------
 
-class CrearPoligonosTabla(QgsProcessingAlgorithm):
+class CrearPoligonosTabla(GeomaticapeAlgorithm):
+    _algorithm_name = "crear_poligonos_tabla"
+    _icon_name = "poligonos_tabla.png"
 
     INPUT_FILE   = "INPUT_FILE"
     SHEET        = "SHEET"
@@ -482,31 +485,21 @@ class CrearPoligonosTabla(QgsProcessingAlgorithm):
     OUT_SEG      = "OUT_SEG"
     OUT_POL      = "OUT_POL"
 
-    def name(self):
-        return "crear_poligonos_tabla"
-
     def displayName(self):
-        return "Crear poligonos a partir de tabla"
+        return self.tr("Crear poligonos a partir de tabla")
 
     def group(self):
-        return "Geoprocesamiento"
+        return self.tr("Geoprocesamiento")
 
     def groupId(self):
         return "geomaticape_geoprocesamiento"
-
-    def icon(self):
-        return QIcon(os.path.join(os.path.dirname(__file__), "..",
-                                  "Icons", "poligonos_tabla.png"))
-
-    def createInstance(self):
-        return CrearPoligonosTabla()
 
     def shortHelpString(self):
         return """
 <h3>Crear poligonos a partir de tabla</h3>
 <b>Autor:</b> GEOMATICA AMBIENTAL<br>
 <b>Plugin:</b> Geomaticape<br>
-<b>Version:</b> 1.8<br><br>
+<b>Version:</b> 1.10<br><br>
 
 <b>Descripcion:</b><br>
 Genera tres capas vectoriales a partir de una tabla CSV / TXT / XLS / XLSX:
@@ -529,45 +522,45 @@ tabla y te permite seleccionarlas en listas desplegables.<br>
 
     def initAlgorithm(self, config=None):
         self.addParameter(QgsProcessingParameterFile(
-            self.INPUT_FILE, "Tabla (CSV / TXT / XLS / XLSX)",
+            self.INPUT_FILE, self.tr("Tabla (CSV / TXT / XLS / XLSX)"),
             extension="", fileFilter="Tablas (*.csv *.txt *.xls *.xlsx)"
         ))
         self.addParameter(QgsProcessingParameterString(
-            self.SHEET, "Hoja Excel (nombre o indice 0..n)",
+            self.SHEET, self.tr("Hoja Excel (nombre o indice 0..n)"),
             defaultValue="0", optional=True
         ))
         self.addParameter(QgsProcessingParameterString(
-            self.SEPARATOR, "Separador CSV/TXT",
+            self.SEPARATOR, self.tr("Separador CSV/TXT"),
             defaultValue=",", optional=True
         ))
         self.addParameter(QgsProcessingParameterString(
-            self.FIELD_GROUP, "Campo de agrupamiento (parcela)",
+            self.FIELD_GROUP, self.tr("Campo de agrupamiento (parcela)"),
             defaultValue="Parcela"
         ))
         self.addParameter(QgsProcessingParameterString(
-            self.FIELD_ORDER, "Campo de orden (numerico)",
+            self.FIELD_ORDER, self.tr("Campo de orden (numerico)"),
             defaultValue="Orden"
         ))
         self.addParameter(QgsProcessingParameterString(
-            self.FIELD_X, "Campo coordenada X (Este)",
+            self.FIELD_X, self.tr("Campo coordenada X (Este)"),
             defaultValue="Este_X"
         ))
         self.addParameter(QgsProcessingParameterString(
-            self.FIELD_Y, "Campo coordenada Y (Norte)",
+            self.FIELD_Y, self.tr("Campo coordenada Y (Norte)"),
             defaultValue="Norte_Y"
         ))
         self.addParameter(QgsProcessingParameterCrs(
-            self.CRS, "CRS de salida",
+            self.CRS, self.tr("CRS de salida"),
             defaultValue="EPSG:32718"
         ))
         self.addParameter(QgsProcessingParameterVectorDestination(
-            self.OUT_VERT, "Capa de vertices"
+            self.OUT_VERT, self.tr("Capa de vertices")
         ))
         self.addParameter(QgsProcessingParameterVectorDestination(
-            self.OUT_SEG, "Capa de segmentos"
+            self.OUT_SEG, self.tr("Capa de segmentos")
         ))
         self.addParameter(QgsProcessingParameterVectorDestination(
-            self.OUT_POL, "Capa de poligonos"
+            self.OUT_POL, self.tr("Capa de poligonos")
         ))
 
     def processAlgorithm(self, parameters, context, feedback):
@@ -625,7 +618,7 @@ tabla y te permite seleccionarlas en listas desplegables.<br>
             parent = None
 
         dlg = CrearPoligonosTablaDialog(parent)
-        if dlg.exec_() != QDialog.Accepted:
+        if (dlg.exec_() if hasattr(dlg, 'exec_') else dlg.exec()) != QDialog.Accepted:
             return
 
         v = dlg.get_values()
@@ -636,6 +629,7 @@ tabla y te permite seleccionarlas en listas desplegables.<br>
             QMessageBox.warning(parent, "Aviso", "Debes seleccionar la carpeta de salida.")
             return
         for k in ("campo_grupo", "campo_orden", "campo_x", "campo_y"):
+            if 'feedback' in locals() and feedback.isCanceled(): break
             if not v[k]:
                 QMessageBox.warning(parent, "Aviso", f"Selecciona el campo '{k}'.")
                 return

@@ -1,3 +1,4 @@
+from .geomaticape_algorithm import GeomaticapeAlgorithm
 # -*- coding: utf-8 -*-
 """
 vector_sucesion_cruzada.py  →  Secciones transversales
@@ -27,22 +28,20 @@ def _metros_a_grados(metros, lat_media_deg):
     return grados_lon
 
 
-class VectorSucesionCruzada(QgsProcessingAlgorithm):
+class VectorSucesionCruzada(GeomaticapeAlgorithm):
+    _algorithm_name = "vector_sucesion_cruzada"
+    _icon_name = "poligonos_tabla.png"
     LINES        = 'LINES'
     LONGITUDINAL = 'LONGITUDINAL'
     TRANVERSE    = 'TRANVERSE'
     OUTPUT       = 'OUTPUT'
-
-    def createInstance(self): return VectorSucesionCruzada()
-    def name(self): return 'vector_sucesion_cruzada'
-    def displayName(self): return 'Secciones transversales'
-    def group(self): return 'Vector'
-    def groupId(self): return 'vector'
+    def displayName(self):
+        return self.tr('Secciones transversales')
+    def group(self):
+        return self.tr('Geoprocesamiento')
+    def groupId(self): return 'geomaticape_geoprocesamiento'
     def tags(self): return ['seccion','transversal','perfil','linea','perpendicular',
                             'distancia','topografia','carretera','drenaje','cross']
-    def icon(self):
-        return QIcon(os.path.join(os.path.dirname(os.path.dirname(__file__)),
-                                  'Icons','poligonos_tabla.png'))
     def shortHelpString(self):
         return (
             '<b>Secciones transversales</b><br>'
@@ -63,20 +62,20 @@ class VectorSucesionCruzada(QgsProcessingAlgorithm):
 
     def initAlgorithm(self, config=None):
         self.addParameter(QgsProcessingParameterFeatureSource(
-            self.LINES, 'Capa de líneas',
+            self.LINES, self.tr('Capa de líneas'),
             [QgsProcessing.TypeVectorLine]))
         self.addParameter(QgsProcessingParameterNumber(
             self.LONGITUDINAL,
-            'Distancia longitudinal — espaciado entre secciones (m)',
+            self.tr('Distancia longitudinal — espaciado entre secciones (m)'),
             type=QgsProcessingParameterNumber.Type.Double,
             defaultValue=50.0, minValue=0.001))
         self.addParameter(QgsProcessingParameterNumber(
             self.TRANVERSE,
-            'Distancia transversal — longitud total de cada sección (m)',
+            self.tr('Distancia transversal — longitud total de cada sección (m)'),
             type=QgsProcessingParameterNumber.Type.Double,
             defaultValue=150.0, minValue=0.001))
         self.addParameter(QgsProcessingParameterFeatureSink(
-            self.OUTPUT, 'Secciones transversales'))
+            self.OUTPUT, self.tr('Secciones transversales')))
 
     def processAlgorithm(self, parameters, context, feedback):
         layer = self.parameterAsSource(parameters, self.LINES, context)

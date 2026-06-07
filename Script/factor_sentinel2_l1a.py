@@ -1,3 +1,4 @@
+from .geomaticape_algorithm import GeomaticapeAlgorithm
 import os
 import tempfile
 from qgis.core import (
@@ -9,32 +10,21 @@ from qgis import processing
 from osgeo import gdal
 
 
-class FactorSentinel2L1A(QgsProcessingAlgorithm):
+class FactorSentinel2L1A(GeomaticapeAlgorithm):
+    _algorithm_name = "factor_sentinel2"
+    _icon_name = "icon.png"
 
     INPUT_FOLDER = "INPUT_FOLDER"
     OUTPUT_MULTISPECTRAL = "OUTPUT_MULTISPECTRAL"
 
-    def name(self):
-        return "factor_sentinel2"
-
     def displayName(self):
-        return "Factor de escala Sentinel-2 L1C (10m)"
+        return self.tr("Factor de escala Sentinel-2 L1C (10m)")
 
     def group(self):
-        return "Conversion"
+        return self.tr("Conversion")
 
     def groupId(self):
         return "geomaticape_conversion"
-    def icon(self):
-        from qgis.PyQt.QtGui import QIcon
-        return QIcon(os.path.join(os.path.dirname(__file__), 'icon.png'))
-
-    def createInstance(self):
-        return FactorSentinel2L1A()
-
-        # -----------------------------
-    # PANEL DE AYUDA
-    # -----------------------------
 
     def shortHelpString(self):
         return """
@@ -67,7 +57,7 @@ B01, B02, B03, B04, B05, B06, B07, B08, B11, B12
         self.addParameter(
             QgsProcessingParameterFile(
                 self.INPUT_FOLDER,
-                "Carpeta Sentinel-2 Level-1C (IMG_DATA)",
+                self.tr("Carpeta Sentinel-2 Level-1C (IMG_DATA)"),
                 behavior=QgsProcessingParameterFile.Folder
             )
         )
@@ -75,7 +65,7 @@ B01, B02, B03, B04, B05, B06, B07, B08, B11, B12
         self.addParameter(
             QgsProcessingParameterRasterDestination(
                 self.OUTPUT_MULTISPECTRAL,
-                "Imagen multiespectral 10m"
+                self.tr("Imagen multiespectral 10m")
             )
         )
 
@@ -119,10 +109,12 @@ B01, B02, B03, B04, B05, B06, B07, B08, B11, B12
         temp_dir = tempfile.mkdtemp()
 
         for sufijo in bandas_orden:
+            if feedback.isCanceled(): break
 
             archivo_encontrado = None
 
             for archivo in archivos:
+                if feedback.isCanceled(): break
                 if archivo.upper().endswith(sufijo):
                     archivo_encontrado = archivo
                     break
@@ -204,6 +196,7 @@ B01, B02, B03, B04, B05, B06, B07, B08, B11, B12
 
         # Eliminar temporales
         for temp in temporales:
+            if feedback.isCanceled(): break
             try:
                 if os.path.exists(temp):
                     os.remove(temp)

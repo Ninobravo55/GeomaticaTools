@@ -1,3 +1,4 @@
+from .geomaticape_algorithm import GeomaticapeAlgorithm
 """
 Clasificar Raster por Rangos
 ============================
@@ -39,7 +40,9 @@ DTYPE_NP   = [np.int16, np.uint8, np.uint16, np.int32, np.float32]
 NODATA_BY_DTYPE = [-9999, 255, 65535, -9999, -9999.0]
 
 
-class ClasificarRaster(QgsProcessingAlgorithm):
+class ClasificarRaster(GeomaticapeAlgorithm):
+    _algorithm_name = "clasificar_raster"
+    _icon_name = "clasificacion.png"
 
     INPUT_RASTER  = "INPUT_RASTER"
     BAND          = "BAND"
@@ -47,23 +50,14 @@ class ClasificarRaster(QgsProcessingAlgorithm):
     DTYPE         = "DTYPE"
     OUTPUT_RASTER = "OUTPUT_RASTER"
 
-    def name(self):
-        return "clasificar_raster"
-
     def displayName(self):
-        return "Clasificar raster por rangos"
+        return self.tr("Clasificar raster por rangos")
 
     def group(self):
-        return "PostProcesamiento"
+        return self.tr("PostProcesamiento")
 
     def groupId(self):
         return "geomaticape_postprocesamiento"
-
-    def icon(self):
-        return QIcon(os.path.join(os.path.dirname(__file__), "..", "Icons", "clasificacion.png"))
-
-    def createInstance(self):
-        return ClasificarRaster()
 
     def shortHelpString(self):
         return """
@@ -105,14 +99,14 @@ Float32 solo si el valor de clase tiene decimales.<br><br>
         self.addParameter(
             QgsProcessingParameterRasterLayer(
                 self.INPUT_RASTER,
-                "Raster a clasificar (NDVI, indices, DEM, temperatura, etc.)"
+                self.tr("Raster a clasificar (NDVI, indices, DEM, temperatura, etc.)")
             )
         )
 
         self.addParameter(
             QgsProcessingParameterBand(
                 self.BAND,
-                "Banda a clasificar",
+                self.tr("Banda a clasificar"),
                 parentLayerParameterName=self.INPUT_RASTER,
                 optional=False
             )
@@ -121,7 +115,7 @@ Float32 solo si el valor de clase tiene decimales.<br><br>
         self.addParameter(
             QgsProcessingParameterMatrix(
                 self.TABLE,
-                "Tabla de clasificacion  (Minimo | Maximo | Valor salida)",
+                self.tr("Tabla de clasificacion  (Minimo | Maximo | Valor salida)"),
                 headers=["Minimo", "Maximo", "Valor salida"],
                 defaultValue=[
                     -1.0,  0.0,  1,
@@ -136,7 +130,7 @@ Float32 solo si el valor de clase tiene decimales.<br><br>
         self.addParameter(
             QgsProcessingParameterEnum(
                 self.DTYPE,
-                "Tipo de dato de salida",
+                self.tr("Tipo de dato de salida"),
                 options=DTYPE_OPTIONS,
                 defaultValue=0,
                 allowMultiple=False
@@ -146,7 +140,7 @@ Float32 solo si el valor de clase tiene decimales.<br><br>
         self.addParameter(
             QgsProcessingParameterRasterDestination(
                 self.OUTPUT_RASTER,
-                "Raster clasificado"
+                self.tr("Raster clasificado")
             )
         )
 

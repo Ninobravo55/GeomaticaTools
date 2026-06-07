@@ -1,3 +1,4 @@
+from .geomaticape_algorithm import GeomaticapeAlgorithm
 """
 Estadistica zonal de raster (mono o multiespectral)
 ====================================================
@@ -8,7 +9,7 @@ banda analizar. Las estadisticas se pueden seleccionar (todas por defecto).
 Resultado: tabla en Excel (.xlsx) o CSV.
 
 Autor : Geomatica Ambiental - https://www.geomatica.pe
-Plugin: Geomaticape v1.8
+Plugin: Geomaticape v1.10
 Grupo : Geoprocesamiento
 """
 
@@ -89,7 +90,9 @@ def _calc_stats(arr_valid, stats_seleccionadas):
     return out
 
 
-class EstadisticaZonalRaster(QgsProcessingAlgorithm):
+class EstadisticaZonalRaster(GeomaticapeAlgorithm):
+    _algorithm_name = "estadistica_zonal_raster"
+    _icon_name = "zonal_raster.png"
 
     INPUT_VECTOR = "INPUT_VECTOR"
     INPUT_RASTER = "INPUT_RASTER"
@@ -99,31 +102,21 @@ class EstadisticaZonalRaster(QgsProcessingAlgorithm):
     OUT_FORMAT   = "OUT_FORMAT"
     OUTPUT       = "OUTPUT"
 
-    def name(self):
-        return "estadistica_zonal_raster"
-
     def displayName(self):
-        return "Estadistica zonal raster (Excel/CSV)"
+        return self.tr("Estadistica zonal raster (Excel/CSV)")
 
     def group(self):
-        return "Geoprocesamiento"
+        return self.tr("Geoprocesamiento")
 
     def groupId(self):
         return "geomaticape_geoprocesamiento"
-
-    def icon(self):
-        return QIcon(os.path.join(os.path.dirname(__file__), "..",
-                                  "Icons", "zonal_raster.png"))
-
-    def createInstance(self):
-        return EstadisticaZonalRaster()
 
     def shortHelpString(self):
         return """
 <h3>Estadistica zonal raster</h3>
 <b>Autor:</b> GEOMATICA AMBIENTAL<br>
 <b>Plugin:</b> Geomaticape<br>
-<b>Version:</b> 1.8<br><br>
+<b>Version:</b> 1.10<br><br>
 
 <b>Descripcion:</b><br>
 Calcula estadisticas de los pixeles del raster que caen dentro de cada
@@ -148,43 +141,43 @@ Las estadisticas se pueden seleccionar; por defecto se calculan todas:
     def initAlgorithm(self, config=None):
         self.addParameter(QgsProcessingParameterVectorLayer(
             self.INPUT_VECTOR,
-            "Capa de poligonos",
+            self.tr("Capa de poligonos"),
             types=[QgsProcessing.TypeVectorPolygon]
         ))
         self.addParameter(QgsProcessingParameterRasterLayer(
             self.INPUT_RASTER,
-            "Capa raster (mono o multiespectral)"
+            self.tr("Capa raster (mono o multiespectral)")
         ))
         self.addParameter(QgsProcessingParameterBand(
             self.BAND,
-            "Banda a analizar (si es multiespectral)",
+            self.tr("Banda a analizar (si es multiespectral)"),
             parentLayerParameterName=self.INPUT_RASTER,
             defaultValue=1,
             optional=False
         ))
         self.addParameter(QgsProcessingParameterField(
             self.ID_FIELD,
-            "Campo identificador del poligono (opcional)",
+            self.tr("Campo identificador del poligono (opcional)"),
             parentLayerParameterName=self.INPUT_VECTOR,
             optional=True
         ))
         self.addParameter(QgsProcessingParameterEnum(
             self.STATS,
-            "Estadisticas a calcular (todas por defecto)",
+            self.tr("Estadisticas a calcular (todas por defecto)"),
             options=STATS_LIST,
             allowMultiple=True,
             defaultValue=list(range(len(STATS_LIST)))
         ))
         self.addParameter(QgsProcessingParameterEnum(
             self.OUT_FORMAT,
-            "Formato de salida",
+            self.tr("Formato de salida"),
             options=["Excel (.xlsx)", "CSV (.csv)"],
             defaultValue=0,
             allowMultiple=False
         ))
         self.addParameter(QgsProcessingParameterFileDestination(
             self.OUTPUT,
-            "Tabla de resultados",
+            self.tr("Tabla de resultados"),
             fileFilter="Excel (*.xlsx);;CSV (*.csv)"
         ))
 

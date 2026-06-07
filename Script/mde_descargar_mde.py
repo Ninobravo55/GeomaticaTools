@@ -1,3 +1,4 @@
+from .geomaticape_algorithm import GeomaticapeAlgorithm
 # -*- coding: utf-8 -*-
 """
 mde_descargar_mde.py
@@ -156,32 +157,28 @@ def _ensure_ee(feedback):
         )
 
 
-def _autenticar_gee(ee, correo, proyecto, feedback):
+def _autenticar_gee(ee, feedback):
+    from qgis.core import QgsSettings
     try:
+        settings = QgsSettings()
+        proyecto = settings.value('geomaticape/gee_project', '', type=str).strip()
         kwargs = {}
-        if proyecto.strip():
-            kwargs['project'] = proyecto.strip()
+        if proyecto:
+            kwargs['project'] = proyecto
 
-        if correo.strip():
-            feedback.pushInfo(f"Conectando GEE | cuenta: {correo}")
-            feedback.pushInfo(f"Proyecto       : {proyecto or '(por defecto)'}")
-            ee.Initialize(opt_url='https://earthengine.googleapis.com', **kwargs)
-        else:
-            feedback.pushInfo("Conectando GEE con credenciales locales guardadas...")
-            ee.Initialize(**kwargs)
-
+        feedback.pushInfo("Conectando GEE con credenciales locales guardadas...")
+        if proyecto:
+            feedback.pushInfo(f"Proyecto GEE: {proyecto}")
+            
+        ee.Initialize(opt_url='https://earthengine.googleapis.com', **kwargs)
         feedback.pushInfo("Conexion a Google Earth Engine exitosa.")
 
     except Exception as ex:
         msg = str(ex)
-        if any(k in msg.lower() for k in ('authorize', 'credentials', 'oauth', 'token')):
+        if any(k in msg.lower() for k in ('authorize', 'credentials', 'oauth', 'token', 'project')):
             raise QgsProcessingException(
                 "No se encontraron credenciales GEE validas.\n\n"
-                "Ejecuta UNA VEZ en la Consola Python de QGIS:\n"
-                "   import ee\n"
-                "   ee.Authenticate()                          # abre navegador\n"
-                "   ee.Initialize(project='TU_PROYECTO_GEE')  # valida la sesion\n\n"
-                "Luego vuelve a ejecutar esta herramienta."
+                "Ve al menu: Geomaticape Tools -> Descarga GEE -> Autenticar Google Earth Engine.\n"
             )
         raise QgsProcessingException(f"Error al conectar GEE: {msg}")
 
@@ -217,12 +214,19 @@ def _estimar_bytes(total_px, dtype):
 
 
 def _descarga_directa(ee, imagen, scale, region, output_path, feedback):
-    """getDownloadURL -> GeoTIFF local. Maneja ZIP o TIF directo."""
+    """getDownloadURL -> GeoTIFF local. Maneja ZIP o TIF directo y restaura nombres de bandas."""
     import zipfile, os, shutil
     from urllib.parse import urlparse
     import requests
 
-    feedback.pushInfo("Generando URL de descarga directa en GEE...")
+    feedback.pushInfo(f"Generando URL de descarga directa en GEE para {os.path.basename(output_path)}...")
+    
+    # Obtener nombres de bandas para restaurarlos luego
+    try:
+        band_names = imagen.bandNames().getInfo()
+    except:
+        band_names = []
+
     try:
         url = imagen.getDownloadURL({
             'scale': scale,
@@ -235,38 +239,66 @@ def _descarga_directa(ee, imagen, scale, region, output_path, feedback):
         if '50331648' in msg or 'request size' in msg.lower() or 'must be less than' in msg.lower():
             raise QgsProcessingException(
                 "GEE rechaza la descarga directa porque el archivo supera 48 MB.\n"
-                "Reduce el área o aumenta la escala.\n\n"
+                "Reduce el área, aumenta la escala, o selecciona Export-to-Drive.\n\n"
                 f"Detalle GEE: {msg}"
             )
         raise QgsProcessingException(f"Error al generar URL: {msg}")
 
-    # 🔒 FIX SEGURIDAD (Bandit B310)
     parsed = urlparse(url)
     if parsed.scheme not in ("http", "https"):
         raise QgsProcessingException(
             f"Esquema de URL no permitido: {parsed.scheme}"
         )
 
-    feedback.pushInfo("Descargando GeoTIFF desde GEE (modo seguro)...")
+    feedback.pushInfo("Descargando GeoTIFF desde GEE...")
     tmp = output_path + '_tmp.bin'
 
     try:
-        with requests.get(url, stream=True, timeout=120) as r:
-            r.raise_for_status()
-            total = int(r.headers.get('content-length', 0))
-            descargado = 0
+        from qgis.core import QgsNetworkAccessManager
+        from qgis.PyQt.QtNetwork import QNetworkRequest
+        from qgis.PyQt.QtCore import QUrl, QEventLoop, QFile, QIODevice, QTimer
 
-            with open(tmp, 'wb') as f:
-                for chunk in r.iter_content(chunk_size=8192):
-                    if chunk:
-                        f.write(chunk)
-                        descargado += len(chunk)
+        manager = QgsNetworkAccessManager.instance()
+        req = QNetworkRequest(QUrl(url))
+        reply = manager.get(req)
 
-                        if total > 0:
-                            progreso = int(descargado * 100 / total)
-                            feedback.setProgress(min(progreso, 100))
+        loop = QEventLoop()
+        reply.finished.connect(loop.quit)
+
+        timer = QTimer()
+        timer.setInterval(500)
+
+        out_file = QFile(tmp)
+        if not out_file.open(QIODevice.WriteOnly):
+            reply.abort()
+            raise QgsProcessingException("No se pudo abrir el archivo temporal para descarga.")
+
+        def on_ready_read():
+            out_file.write(reply.readAll())
+
+        def check_cancel():
+            if feedback.isCanceled():
+                reply.abort()
+
+        reply.readyRead.connect(on_ready_read)
+        timer.timeout.connect(check_cancel)
+        timer.start()
+
+        loop.exec_()
+        timer.stop()
+        out_file.close()
+
+        if reply.error() != 0:
+            if feedback.isCanceled():
+                raise QgsProcessingException("Cancelado por el usuario.")
+            raise QgsProcessingException(f"Error de red/HTTP: {reply.errorString()}")
 
     except Exception as ex:
+        if os.path.exists(tmp):
+            try:
+                os.remove(tmp)
+            except:
+                pass
         raise QgsProcessingException(f"Error en descarga: {str(ex)}")
 
     # ── Procesar archivo descargado ─────────────────────────────
@@ -282,6 +314,20 @@ def _descarga_directa(ee, imagen, scale, region, output_path, feedback):
         os.remove(tmp)
     else:
         shutil.move(tmp, output_path)
+
+    # Restaurar nombres de bandas internos usando GDAL
+    if band_names:
+        try:
+            from osgeo import gdal
+            ds = gdal.Open(output_path, gdal.GA_Update)
+            if ds:
+                for i, bname in enumerate(band_names):
+                    if i < ds.RasterCount:
+                        band = ds.GetRasterBand(i + 1)
+                        band.SetDescription(bname)
+                ds = None
+        except Exception as e:
+            feedback.pushWarning(f"No se pudieron renombrar las bandas internas: {e}")
 
     feedback.pushInfo(f"MDE guardado en: {output_path}")
 
@@ -393,27 +439,21 @@ def _exportar_drive(ee, imagen, scale, region, task_name, feedback):
 # Algoritmo QGIS Processing
 # ─────────────────────────────────────────────────────────────────────────────
 
-class MDEDescargarMDE(QgsProcessingAlgorithm):
+class MDEDescargarMDE(GeomaticapeAlgorithm):
+    _algorithm_name = "mde_descargar_mde"
+    _icon_name = "extraer_valores.png"
 
     EXTENT  = 'EXTENT'
-    EMAIL   = 'EMAIL'
-    PROJECT = 'PROJECT'
     DATASET = 'DATASET'
     SCALE   = 'SCALE'
     OPEN    = 'OPEN'
     OUTPUT  = 'OUTPUT'
 
-    def createInstance(self):
-        return MDEDescargarMDE()
-
-    def name(self):
-        return 'mde_descargar_mde'
-
     def displayName(self):
-        return 'Descargar MDE'
+        return self.tr('Descargar MDE')
 
     def group(self):
-        return 'MDE'
+        return self.tr('MDE')
 
     def groupId(self):
         return 'mde_geo'
@@ -422,10 +462,6 @@ class MDEDescargarMDE(QgsProcessingAlgorithm):
         return ['mde', 'dem', 'elevacion', 'srtm', 'copernicus', 'nasadem',
                 'alos', 'merit', 'aster', '3dep', 'gee', 'google earth engine',
                 'google drive', 'descarga', 'modelo', 'terreno', 'digital']
-
-    def icon(self):
-        return QIcon(os.path.join(os.path.dirname(os.path.dirname(__file__)),
-                                  'Icons', 'extraer_valores.png'))
 
     def shortHelpString(self):
         catalogo = ''.join(
@@ -468,31 +504,19 @@ compatibilidad con todos los tipos de dato.<br><br>
 """
 
     def initAlgorithm(self, config=None):
-        self.addParameter(QgsProcessingParameterString(
-            self.EMAIL,
-            'Correo de cuenta Google Earth Engine',
-            defaultValue='',
-            optional=True
-        ))
-        self.addParameter(QgsProcessingParameterString(
-            self.PROJECT,
-            'ID del proyecto GEE (Google Cloud Project)',
-            defaultValue='',
-            optional=True
-        ))
         self.addParameter(QgsProcessingParameterExtent(
             self.EXTENT,
-            'Extension del area de interes'
+            self.tr('Extension del area de interes')
         ))
         self.addParameter(QgsProcessingParameterEnum(
             self.DATASET,
-            'Fuente de elevacion (DEM)',
+            self.tr('Fuente de elevacion (DEM)'),
             options=DEM_LABELS,
             defaultValue=0
         ))
         self.addParameter(QgsProcessingParameterNumber(
             self.SCALE,
-            'Escala de salida (m)  —  0 = resolucion nativa del DEM',
+            self.tr('Escala de salida (m)  —  0 = resolucion nativa del DEM'),
             type=QgsProcessingParameterNumber.Type.Integer,
             defaultValue=0,
             minValue=0,
@@ -500,18 +524,16 @@ compatibilidad con todos los tipos de dato.<br><br>
         ))
         self.addParameter(QgsProcessingParameterBoolean(
             self.OPEN,
-            'Cargar MDE en QGIS al finalizar (solo descarga directa)',
+            self.tr('Cargar MDE en QGIS al finalizar (solo descarga directa)'),
             defaultValue=True
         ))
         self.addParameter(QgsProcessingParameterFileDestination(
             self.OUTPUT,
-            'Archivo de salida local (solo descarga directa)',
+            self.tr('Archivo de salida local (solo descarga directa)'),
             fileFilter='GeoTIFF (*.tif)'
         ))
 
     def processAlgorithm(self, parameters, context, feedback):
-        correo   = self.parameterAsString(parameters, self.EMAIL,   context).strip()
-        proyecto = self.parameterAsString(parameters, self.PROJECT, context).strip()
         idx_dem  = self.parameterAsEnum(parameters,  self.DATASET,  context)
         escala   = self.parameterAsInt(parameters,   self.SCALE,    context)
         output   = self.parameterAsFileOutput(parameters, self.OUTPUT, context)
@@ -569,7 +591,7 @@ compatibilidad con todos los tipos de dato.<br><br>
 
         # ── Autenticar GEE ────────────────────────────────────────
         ee = _ensure_ee(feedback)
-        _autenticar_gee(ee, correo, proyecto, feedback)
+        _autenticar_gee(ee, feedback)
 
         # ── Construir imagen ──────────────────────────────────────
         region = ee.Geometry.Rectangle([lon_min, lat_min, lon_max, lat_max])

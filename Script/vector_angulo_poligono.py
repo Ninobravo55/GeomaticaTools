@@ -1,3 +1,4 @@
+from .geomaticape_algorithm import GeomaticapeAlgorithm
 # -*- coding: utf-8 -*-
 """
 vector_angulo_poligono.py
@@ -44,21 +45,19 @@ def _area_shoelace(coords):
     return a / 2.0
 
 
-class VectorAnguloPoligono(QgsProcessingAlgorithm):
+class VectorAnguloPoligono(GeomaticapeAlgorithm):
+    _algorithm_name = "vector_angulo_poligono"
+    _icon_name = "poligonos_tabla.png"
     POLYGONS = 'POLYGONS'
     FIELD    = 'FIELD'
     ANGLES   = 'ANGLES'
-
-    def createInstance(self): return VectorAnguloPoligono()
-    def name(self): return 'vector_angulo_poligono'
-    def displayName(self): return 'Calcular ángulo de polígono'
-    def group(self): return 'Vector'
-    def groupId(self): return 'vector'
+    def displayName(self):
+        return self.tr('Calcular ángulo de polígono')
+    def group(self):
+        return self.tr('Geoprocesamiento')
+    def groupId(self): return 'geomaticape_geoprocesamiento'
     def tags(self): return ['angulo','poligono','vertice','interior','exterior',
                             'topografia','medicion','gms','decimal']
-    def icon(self):
-        return QIcon(os.path.join(os.path.dirname(os.path.dirname(__file__)),
-                                  'Icons','poligonos_tabla.png'))
     def shortHelpString(self):
         return (
             '<b>Calcular ángulo de polígono</b><br>'
@@ -79,13 +78,13 @@ class VectorAnguloPoligono(QgsProcessingAlgorithm):
 
     def initAlgorithm(self, config=None):
         self.addParameter(QgsProcessingParameterFeatureSource(
-            self.POLYGONS, 'Capa de polígonos',
+            self.POLYGONS, self.tr('Capa de polígonos'),
             [QgsProcessing.TypeVectorPolygon]))
         self.addParameter(QgsProcessingParameterField(
-            self.FIELD, 'Campo ID del polígono (opcional)',
+            self.FIELD, self.tr('Campo ID del polígono (opcional)'),
             parentLayerParameterName=self.POLYGONS, optional=True))
         self.addParameter(QgsProcessingParameterFeatureSink(
-            self.ANGLES, 'Puntos con ángulos'))
+            self.ANGLES, self.tr('Puntos con ángulos')))
 
     def processAlgorithm(self, parameters, context, feedback):
         source = self.parameterAsSource(parameters, self.POLYGONS, context)

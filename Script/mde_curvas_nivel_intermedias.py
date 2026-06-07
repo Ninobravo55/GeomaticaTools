@@ -1,3 +1,4 @@
+from .geomaticape_algorithm import GeomaticapeAlgorithm
 # -*- coding: utf-8 -*-
 """
 mde_curvas_nivel_intermedias.py
@@ -21,22 +22,20 @@ import os
 import math
 
 
-class MDECurvasNivelIntermedias(QgsProcessingAlgorithm):
+class MDECurvasNivelIntermedias(GeomaticapeAlgorithm):
+    _algorithm_name = "mde_curvas_nivel_intermedias"
+    _icon_name = "extraer_valores.png"
     DEM           = 'DEM'
     EQUIDISTANCIA = 'EQUIDISTANCIA'
     MULTIPLICADOR = 'MULTIPLICADOR'
     OUTPUT        = 'OUTPUT'
-
-    def createInstance(self): return MDECurvasNivelIntermedias()
-    def name(self): return 'mde_curvas_nivel_intermedias'
-    def displayName(self): return 'Generar curvas de nivel intermedias'
-    def group(self): return 'MDE'
+    def displayName(self):
+        return self.tr('Generar curvas de nivel intermedias')
+    def group(self):
+        return self.tr('MDE')
     def groupId(self): return 'mde_geo'
     def tags(self): return ['curvas','nivel','intermedias','maestras','mde','dem',
                             'contour','isohipsa','altimetria','cartografia','equidistancia']
-    def icon(self):
-        return QIcon(os.path.join(os.path.dirname(os.path.dirname(__file__)),
-                                  'Icons','extraer_valores.png'))
     def shortHelpString(self):
         return (
             '<b>Extraer curvas de nivel intermedias</b><br>'
@@ -68,20 +67,20 @@ class MDECurvasNivelIntermedias(QgsProcessingAlgorithm):
 
     def initAlgorithm(self, config=None):
         self.addParameter(QgsProcessingParameterRasterLayer(
-            self.DEM, 'MDE (Modelo Digital de Elevación)',
+            self.DEM, self.tr('MDE (Modelo Digital de Elevación)'),
             [QgsProcessing.TypeRaster]))
         self.addParameter(QgsProcessingParameterNumber(
             self.EQUIDISTANCIA,
-            'Equidistancia entre curvas (m)',
+            self.tr('Equidistancia entre curvas (m)'),
             type=QgsProcessingParameterNumber.Type.Double,
             defaultValue=10.0, minValue=0.001))
         self.addParameter(QgsProcessingParameterNumber(
             self.MULTIPLICADOR,
-            'Multiplicador de curvas maestras (cada N curvas)',
+            self.tr('Multiplicador de curvas maestras (cada N curvas)'),
             type=QgsProcessingParameterNumber.Type.Integer,
             defaultValue=5, minValue=2, maxValue=20))
         self.addParameter(QgsProcessingParameterFeatureSink(
-            self.OUTPUT, 'Curvas de nivel clasificadas'))
+            self.OUTPUT, self.tr('Curvas de nivel clasificadas')))
 
     def processAlgorithm(self, parameters, context, feedback):
         dem_layer   = self.parameterAsRasterLayer(parameters, self.DEM, context)

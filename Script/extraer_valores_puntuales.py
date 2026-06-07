@@ -1,3 +1,4 @@
+from .geomaticape_algorithm import GeomaticapeAlgorithm
 """
 Extraer valores puntuales de multiples raster
 ==============================================
@@ -22,7 +23,7 @@ Fuente original / inspiracion:
     Licencia GPL v2+, atribucion conservada.
 
 Autor: Geomatica Ambiental - https://www.geomatica.pe
-Plugin: Geomaticape v1.9
+Plugin: Geomaticape v1.10
 Grupo : Geoprocesamiento
 """
 
@@ -487,6 +488,7 @@ def _exportar_csv(layer, ruta):
         w = csv.writer(fh)
         w.writerow(cols_full)
         for feat in layer.getFeatures():
+            if feedback.isCanceled(): break
             row = [feat.geometry().asWkt() if feat.geometry() else ""]
             row += list(feat.attributes())
             w.writerow(row)
@@ -506,6 +508,7 @@ def _exportar_xlsx(layer, ruta):
     ws.title = "valores_puntuales"
     ws.append(["x", "y"] + cols)
     for feat in layer.getFeatures():
+        if feedback.isCanceled(): break
         if feat.geometry():
             p = feat.geometry().asPoint()
             xy = [float(p.x()), float(p.y())]
@@ -519,7 +522,9 @@ def _exportar_xlsx(layer, ruta):
 #  QgsProcessingAlgorithm (uso desde la caja de procesos)
 # =========================================================================
 
-class ExtraerValoresPuntuales(QgsProcessingAlgorithm):
+class ExtraerValoresPuntuales(GeomaticapeAlgorithm):
+    _algorithm_name = "extraer_valores_puntuales"
+    _icon_name = "extraer_valores.png"
 
     INPUT_POINTS = "INPUT_POINTS"
     INPUT_RASTERS = "INPUT_RASTERS"
@@ -528,31 +533,21 @@ class ExtraerValoresPuntuales(QgsProcessingAlgorithm):
     COPY_ATTR = "COPY_ATTR"
     OUTPUT = "OUTPUT"
 
-    def name(self):
-        return "extraer_valores_puntuales"
-
     def displayName(self):
-        return "Extraer valores puntuales de multiples raster"
+        return self.tr("Extraer valores puntuales de multiples raster")
 
     def group(self):
-        return "Geoprocesamiento"
+        return self.tr("Geoprocesamiento")
 
     def groupId(self):
         return "geomaticape_geoprocesamiento"
-
-    def icon(self):
-        return QIcon(os.path.join(os.path.dirname(__file__), "..",
-                                  "Icons", "extraer_valores.png"))
-
-    def createInstance(self):
-        return ExtraerValoresPuntuales()
 
     def shortHelpString(self):
         return """
 <h3>Extraer valores puntuales de multiples raster</h3>
 <b>Autor:</b> GEOMATICA AMBIENTAL<br>
 <b>Plugin:</b> Geomaticape<br>
-<b>Version:</b> 1.9<br><br>
+<b>Version:</b> 1.10<br><br>
 
 <b>Descripcion:</b><br>
 Para cada punto de la capa de entrada, extrae los valores de TODAS las
@@ -577,28 +572,28 @@ https://github.com/borysiasty/pointsamplingtool
 
     def initAlgorithm(self, config=None):
         self.addParameter(QgsProcessingParameterFeatureSource(
-            self.INPUT_POINTS, "Capa de puntos",
+            self.INPUT_POINTS, self.tr("Capa de puntos"),
             types=[QgsProcessing.TypeVectorPoint]
         ))
         self.addParameter(QgsProcessingParameterMultipleLayers(
-            self.INPUT_RASTERS, "Rasters a muestrear (todas las bandas)",
+            self.INPUT_RASTERS, self.tr("Rasters a muestrear (todas las bandas)"),
             layerType=QgsProcessing.TypeRaster
         ))
         self.addParameter(QgsProcessingParameterEnum(
-            self.INTERP, "Interpolacion",
+            self.INTERP, self.tr("Interpolacion"),
             options=["Vecino mas proximo", "Bilineal"],
             defaultValue=0, allowMultiple=False
         ))
         self.addParameter(QgsProcessingParameterBoolean(
-            self.INCLUDE_XY, "Incluir coordenadas X / Y del punto",
+            self.INCLUDE_XY, self.tr("Incluir coordenadas X / Y del punto"),
             defaultValue=True
         ))
         self.addParameter(QgsProcessingParameterBoolean(
-            self.COPY_ATTR, "Copiar atributos de la capa de puntos",
+            self.COPY_ATTR, self.tr("Copiar atributos de la capa de puntos"),
             defaultValue=True
         ))
         self.addParameter(QgsProcessingParameterFileDestination(
-            self.OUTPUT, "Archivo de salida",
+            self.OUTPUT, self.tr("Archivo de salida"),
             fileFilter="GeoPackage (*.gpkg);;Shapefile (*.shp);;CSV (*.csv);;Excel (*.xlsx)"
         ))
 
@@ -662,7 +657,7 @@ https://github.com/borysiasty/pointsamplingtool
             parent = None
 
         dlg = ExtraerValoresPuntualesDialog(parent)
-        if dlg.exec_() != QDialog.Accepted:
+        if (dlg.exec_() if hasattr(dlg, 'exec_') else dlg.exec()) != QDialog.Accepted:
             return
 
         v = dlg.get_values()

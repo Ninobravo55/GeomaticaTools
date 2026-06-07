@@ -1,3 +1,4 @@
+from .geomaticape_algorithm import GeomaticapeAlgorithm
 # -*- coding: utf-8 -*-
 """
 raster_definir_celdas_nulas.py
@@ -22,7 +23,9 @@ import numpy as np
 import os
 
 
-class RasterDefinirCeldasNulas(QgsProcessingAlgorithm):
+class RasterDefinirCeldasNulas(GeomaticapeAlgorithm):
+    _algorithm_name = "raster_definir_celdas_nulas"
+    _icon_name = "indices.png"
 
     RASTER_IN = 'RASTER_IN'
     MIN = 'MIN'
@@ -31,28 +34,18 @@ class RasterDefinirCeldasNulas(QgsProcessingAlgorithm):
     OPEN = 'OPEN'
     RASTER_OUT = 'RASTER_OUT'
 
-    def createInstance(self):
-        return RasterDefinirCeldasNulas()
-
-    def name(self):
-        return 'raster_definir_celdas_nulas'
-
     def displayName(self):
-        return 'Definir celdas nulas'
+        return self.tr('Definir celdas nulas')
 
     def group(self):
-        return 'Ráster'
+        return self.tr('Procesamiento')
 
     def groupId(self):
-        return 'raster_geo'
+        return 'geomaticape_procesamiento'
 
     def tags(self):
         return ['nulo', 'nodata', 'mascara', 'pixel', 'rango', 'raster',
                 'umbral', 'threshold', 'null', 'transparente']
-
-    def icon(self):
-        return QIcon(os.path.join(os.path.dirname(os.path.dirname(__file__)),
-                                  'Icons', 'indices.png'))
 
     def shortHelpString(self):
         return (
@@ -72,14 +65,14 @@ class RasterDefinirCeldasNulas(QgsProcessingAlgorithm):
         self.addParameter(
             QgsProcessingParameterRasterLayer(
                 self.RASTER_IN,
-                'Raster de entrada',
+                self.tr('Raster de entrada'),
                 [QgsProcessing.TypeRaster]
             )
         )
         self.addParameter(
             QgsProcessingParameterNumber(
                 self.MIN,
-                'Valor mínimo válido',
+                self.tr('Valor mínimo válido'),
                 type=QgsProcessingParameterNumber.Type.Double,
                 defaultValue=1
             )
@@ -87,7 +80,7 @@ class RasterDefinirCeldasNulas(QgsProcessingAlgorithm):
         self.addParameter(
             QgsProcessingParameterNumber(
                 self.MAX,
-                'Valor máximo válido',
+                self.tr('Valor máximo válido'),
                 type=QgsProcessingParameterNumber.Type.Double,
                 defaultValue=65535
             )
@@ -95,7 +88,7 @@ class RasterDefinirCeldasNulas(QgsProcessingAlgorithm):
         self.addParameter(
             QgsProcessingParameterNumber(
                 self.NULLVALUE,
-                'Valor a asignar como nulo (NoData)',
+                self.tr('Valor a asignar como nulo (NoData)'),
                 type=QgsProcessingParameterNumber.Type.Double,
                 defaultValue=0
             )
@@ -103,14 +96,14 @@ class RasterDefinirCeldasNulas(QgsProcessingAlgorithm):
         self.addParameter(
             QgsProcessingParameterBoolean(
                 self.OPEN,
-                'Cargar resultado en el proyecto',
+                self.tr('Cargar resultado en el proyecto'),
                 defaultValue=True
             )
         )
         self.addParameter(
             QgsProcessingParameterFileDestination(
                 self.RASTER_OUT,
-                'Raster con celdas nulas definidas',
+                self.tr('Raster con celdas nulas definidas'),
                 fileFilter='GeoTIFF (*.tif)'
             )
         )
@@ -143,11 +136,12 @@ class RasterDefinirCeldasNulas(QgsProcessingAlgorithm):
         rows = ds.RasterYSize
         CRS = osr.SpatialReference(wkt=prj)
 
-        Driver = gdal.GetDriverByName('GTiff').Create(output, cols, rows, n_bands, GDT)
+        Driver = gdal.GetDriverByName('GTiff').Create(output, cols, rows, n_bands, GDT, options=["COMPRESS=LZW", "TILED=YES", "BIGTIFF=IF_SAFER"])
         Driver.SetGeoTransform(geotransform)
         Driver.SetProjection(CRS.ExportToWkt())
 
         for k in range(n_bands):
+            if 'feedback' in locals() and feedback.isCanceled(): break
             feedback.pushInfo(f'Procesando banda {k+1}/{n_bands}...')
             banda = ds.GetRasterBand(k+1).ReadAsArray().astype(np.float64)
             # Píxeles fuera del rango → nulo

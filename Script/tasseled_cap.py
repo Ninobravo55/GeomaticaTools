@@ -1,3 +1,4 @@
+from .geomaticape_algorithm import GeomaticapeAlgorithm
 import os
 import gc
 import numpy as np
@@ -58,7 +59,9 @@ TC_COEF = {
 SENSOR_KEYS = list(TC_COEF.keys())
 
 
-class TasseledCap(QgsProcessingAlgorithm):
+class TasseledCap(GeomaticapeAlgorithm):
+    _algorithm_name = "tasseled_cap"
+    _icon_name = "indices.png"
     """
     Transformación Tasseled Cap para imágenes multiespectrales de
     Landsat 5, 7, 8, 9 y Sentinel-2.
@@ -89,28 +92,14 @@ class TasseledCap(QgsProcessingAlgorithm):
     # IDENTIFICACIÓN
     # -------------------------------------------------------
 
-    def name(self):
-        return "tasseled_cap"
-
     def displayName(self):
-        return "Tasseled Cap (Brightness · Greenness · Wetness)"
+        return self.tr("Tasseled Cap (Brightness · Greenness · Wetness)")
 
     def group(self):
-        return "Procesamiento"
+        return self.tr("Procesamiento")
 
     def groupId(self):
         return "geomaticape_procesamiento"
-
-    def icon(self):
-        from qgis.PyQt.QtGui import QIcon
-        return QIcon(os.path.join(os.path.dirname(__file__), "..", "Icons", "indices.png"))
-
-    def createInstance(self):
-        return TasseledCap()
-
-    # -------------------------------------------------------
-    # AYUDA
-    # -------------------------------------------------------
 
     def shortHelpString(self):
         coef_html = ""
@@ -169,14 +158,14 @@ comprimido LZW, con CRS y geotransform de la imagen original.<br><br>
         self.addParameter(
             QgsProcessingParameterRasterLayer(
                 self.INPUT_RASTER,
-                "Imagen multiespectral de entrada (BLUE + GREEN + RED + NIR + SWIR1 + SWIR2)"
+                self.tr("Imagen multiespectral de entrada (BLUE + GREEN + RED + NIR + SWIR1 + SWIR2)")
             )
         )
 
         self.addParameter(
             QgsProcessingParameterEnum(
                 self.SENSOR_TYPE,
-                "Sensor / satélite",
+                self.tr("Sensor / satélite"),
                 options=SENSOR_KEYS,
                 defaultValue=2,   # Landsat 8 por defecto
                 allowMultiple=False
@@ -186,7 +175,7 @@ comprimido LZW, con CRS y geotransform de la imagen original.<br><br>
         self.addParameter(
             QgsProcessingParameterBand(
                 self.BAND_BLUE,
-                "Banda BLUE  (azul visible)",
+                self.tr("Banda BLUE  (azul visible)"),
                 parentLayerParameterName=self.INPUT_RASTER,
                 optional=False
             )
@@ -194,7 +183,7 @@ comprimido LZW, con CRS y geotransform de la imagen original.<br><br>
         self.addParameter(
             QgsProcessingParameterBand(
                 self.BAND_GREEN,
-                "Banda GREEN (verde visible)",
+                self.tr("Banda GREEN (verde visible)"),
                 parentLayerParameterName=self.INPUT_RASTER,
                 optional=False
             )
@@ -202,7 +191,7 @@ comprimido LZW, con CRS y geotransform de la imagen original.<br><br>
         self.addParameter(
             QgsProcessingParameterBand(
                 self.BAND_RED,
-                "Banda RED   (rojo visible)",
+                self.tr("Banda RED   (rojo visible)"),
                 parentLayerParameterName=self.INPUT_RASTER,
                 optional=False
             )
@@ -210,7 +199,7 @@ comprimido LZW, con CRS y geotransform de la imagen original.<br><br>
         self.addParameter(
             QgsProcessingParameterBand(
                 self.BAND_NIR,
-                "Banda NIR   (infrarrojo cercano)",
+                self.tr("Banda NIR   (infrarrojo cercano)"),
                 parentLayerParameterName=self.INPUT_RASTER,
                 optional=False
             )
@@ -218,7 +207,7 @@ comprimido LZW, con CRS y geotransform de la imagen original.<br><br>
         self.addParameter(
             QgsProcessingParameterBand(
                 self.BAND_SWIR1,
-                "Banda SWIR1 (infrarrojo de onda corta 1  ~1.6 µm)",
+                self.tr("Banda SWIR1 (infrarrojo de onda corta 1  ~1.6 µm)"),
                 parentLayerParameterName=self.INPUT_RASTER,
                 optional=False
             )
@@ -226,7 +215,7 @@ comprimido LZW, con CRS y geotransform de la imagen original.<br><br>
         self.addParameter(
             QgsProcessingParameterBand(
                 self.BAND_SWIR2,
-                "Banda SWIR2 (infrarrojo de onda corta 2  ~2.2 µm)",
+                self.tr("Banda SWIR2 (infrarrojo de onda corta 2  ~2.2 µm)"),
                 parentLayerParameterName=self.INPUT_RASTER,
                 optional=False
             )
@@ -235,7 +224,7 @@ comprimido LZW, con CRS y geotransform de la imagen original.<br><br>
         self.addParameter(
             QgsProcessingParameterRasterDestination(
                 self.OUTPUT_RASTER,
-                "Imagen Tasseled Cap (3 bandas: Brightness · Greenness · Wetness)"
+                self.tr("Imagen Tasseled Cap (3 bandas: Brightness · Greenness · Wetness)")
             )
         )
 
@@ -278,6 +267,7 @@ comprimido LZW, con CRS y geotransform de la imagen original.<br><br>
         feedback.pushInfo(f"🛰  Sensor       : {sensor_name}")
         feedback.pushInfo(f"📥 Raster entrada: {os.path.basename(input_path)}")
         for rol, num in band_map.items():
+            if 'feedback' in locals() and feedback.isCanceled(): break
             feedback.pushInfo(f"   {rol:<6} → banda {num}")
         feedback.pushInfo("════════════════════════════════════════════════")
 
@@ -307,6 +297,7 @@ comprimido LZW, con CRS y geotransform de la imagen original.<br><br>
 
         # Validar que los números de banda existen en el raster
         for rol, num in band_map.items():
+            if 'feedback' in locals() and feedback.isCanceled(): break
             if num < 1 or num > nbands:
                 raise QgsProcessingException(
                     f"❌ La banda asignada a {rol} (banda {num}) no existe "
@@ -364,6 +355,7 @@ comprimido LZW, con CRS y geotransform de la imagen original.<br><br>
 
         # Estadísticas rápidas para el log
         for nombre, arr in [("Brightness", Brightness), ("Greenness", Greenness), ("Wetness", Wetness)]:
+            if 'feedback' in locals() and feedback.isCanceled(): break
             vmin = float(np.nanmin(arr))
             vmax = float(np.nanmax(arr))
             vmean = float(np.nanmean(arr))
@@ -396,6 +388,7 @@ comprimido LZW, con CRS y geotransform de la imagen original.<br><br>
         ]
 
         for i, (label, arr) in enumerate(band_data, start=1):
+            if 'feedback' in locals() and feedback.isCanceled(): break
             arr_f32 = np.where(np.isnan(arr), nodata_out, arr).astype(np.float32)
             b = ds_out.GetRasterBand(i)
             b.WriteArray(arr_f32)

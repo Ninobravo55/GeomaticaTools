@@ -1,3 +1,4 @@
+from .geomaticape_algorithm import GeomaticapeAlgorithm
 # -*- coding: utf-8 -*-
 """
 mde_punto_cota_dem.py
@@ -31,24 +32,20 @@ import numpy as np
 import os
 
 
-class MDEPuntoCotaDEM(QgsProcessingAlgorithm):
+class MDEPuntoCotaDEM(GeomaticapeAlgorithm):
+    _algorithm_name = "mde_punto_cota_dem"
+    _icon_name = "extraer_valores.png"
 
     INPUT    = 'INPUT'
     CONTOURS = 'CONTOURS'
     FIELD    = 'FIELD'
     SPOTS    = 'SPOTS'
 
-    def createInstance(self):
-        return MDEPuntoCotaDEM()
-
-    def name(self):
-        return 'mde_punto_cota_dem'
-
     def displayName(self):
-        return 'Generar elevaciones puntuales'
+        return self.tr('Generar elevaciones puntuales')
 
     def group(self):
-        return 'MDE'
+        return self.tr('MDE')
 
     def groupId(self):
         return 'mde_geo'
@@ -56,10 +53,6 @@ class MDEPuntoCotaDEM(QgsProcessingAlgorithm):
     def tags(self):
         return ['cota', 'elevacion', 'pico', 'depresion', 'spot elevation',
                 'mde', 'dem', 'curvas de nivel', 'altimetria', 'topo']
-
-    def icon(self):
-        return QIcon(os.path.join(os.path.dirname(os.path.dirname(__file__)),
-                                  'Icons', 'extraer_valores.png'))
 
     def shortHelpString(self):
         return (
@@ -80,23 +73,23 @@ class MDEPuntoCotaDEM(QgsProcessingAlgorithm):
     def initAlgorithm(self, config=None):
         self.addParameter(QgsProcessingParameterRasterLayer(
             self.INPUT,
-            'MDE raster de entrada',
+            self.tr('MDE raster de entrada'),
             [QgsProcessing.TypeRaster]
         ))
         self.addParameter(QgsProcessingParameterFeatureSource(
             self.CONTOURS,
-            'Curvas de nivel (capa de lineas)',
+            self.tr('Curvas de nivel (capa de lineas)'),
             [QgsProcessing.TypeVectorLine]
         ))
         self.addParameter(QgsProcessingParameterField(
             self.FIELD,
-            'Campo con el valor de cota',
+            self.tr('Campo con el valor de cota'),
             parentLayerParameterName=self.CONTOURS,
             type=QgsProcessingParameterField.Numeric
         ))
         self.addParameter(QgsProcessingParameterFeatureSink(
             self.SPOTS,
-            'Elevaciones puntuales (picos y depresiones)'
+            self.tr('Elevaciones puntuales (picos y depresiones)')
         ))
 
     def processAlgorithm(self, parameters, context, feedback):
@@ -168,6 +161,7 @@ class MDEPuntoCotaDEM(QgsProcessingAlgorithm):
         puntos_inicio = []
 
         for feat in curvas.getFeatures():
+            if feedback.isCanceled(): break
             geom = feat.geometry()
             if necesita_tr:
                 geom.transform(tr)

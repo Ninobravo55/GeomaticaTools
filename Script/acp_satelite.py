@@ -1,3 +1,4 @@
+from .geomaticape_algorithm import GeomaticapeAlgorithm
 import os
 import gc
 import numpy as np
@@ -12,7 +13,9 @@ from qgis import processing
 from osgeo import gdal
 
 
-class ACPSatelite(QgsProcessingAlgorithm):
+class ACPSatelite(GeomaticapeAlgorithm):
+    _algorithm_name = "acp_satelite"
+    _icon_name = "acp.png"
     """
     Análisis de Componentes Principales (ACP / PCA) sobre una imagen
     multiespectral de cualquier satélite (Landsat, Sentinel-2, CBERS,
@@ -38,28 +41,14 @@ class ACPSatelite(QgsProcessingAlgorithm):
     # IDENTIFICACIÓN
     # -------------------------------------------------------
 
-    def name(self):
-        return "acp_satelite"
-
     def displayName(self):
-        return "ACP Multiespectral (cualquier satélite)"
+        return self.tr("ACP Multiespectral (cualquier satélite)")
 
     def group(self):
-        return "Procesamiento"
+        return self.tr("Procesamiento")
 
     def groupId(self):
         return "geomaticape_procesamiento"
-
-    def icon(self):
-        from qgis.PyQt.QtGui import QIcon
-        return QIcon(os.path.join(os.path.dirname(__file__), "..", "Icons", "acp.png"))
-
-    def createInstance(self):
-        return ACPSatelite()
-
-    # -------------------------------------------------------
-    # AYUDA
-    # -------------------------------------------------------
 
     def shortHelpString(self):
         return """
@@ -113,21 +102,21 @@ PCA1 · PCA2 · PCA3
         self.addParameter(
             QgsProcessingParameterRasterLayer(
                 self.INPUT_RASTER,
-                "Imagen multiespectral de entrada (n bandas)"
+                self.tr("Imagen multiespectral de entrada (n bandas)")
             )
         )
 
         self.addParameter(
             QgsProcessingParameterRasterDestination(
                 self.OUTPUT_ACP,
-                "Imagen ACP — 3 bandas (PCA1, PCA2, PCA3)"
+                self.tr("Imagen ACP — 3 bandas (PCA1, PCA2, PCA3)")
             )
         )
 
         self.addParameter(
             QgsProcessingParameterFileDestination(
                 self.OUTPUT_BARRA,
-                "Gráfico de barras — % varianza explicada (PNG)",
+                self.tr("Gráfico de barras — % varianza explicada (PNG)"),
                 fileFilter="PNG (*.png)"
             )
         )
@@ -135,7 +124,7 @@ PCA1 · PCA2 · PCA3
         self.addParameter(
             QgsProcessingParameterFileDestination(
                 self.OUTPUT_CORR_CSV,
-                "Matriz de correlación entre bandas (CSV)",
+                self.tr("Matriz de correlación entre bandas (CSV)"),
                 fileFilter="CSV (*.csv)",
                 optional=True,
                 createByDefault=False
@@ -145,7 +134,7 @@ PCA1 · PCA2 · PCA3
         self.addParameter(
             QgsProcessingParameterFileDestination(
                 self.OUTPUT_CORR_PNG,
-                "Gráfico matriz de correlación (PNG)",
+                self.tr("Gráfico matriz de correlación (PNG)"),
                 fileFilter="PNG (*.png)",
                 optional=True,
                 createByDefault=False
@@ -233,6 +222,7 @@ PCA1 · PCA2 · PCA3
         nodata_vals = []
         band_names_in = []
         for i in range(1, nbands + 1):
+            if 'feedback' in locals() and feedback.isCanceled(): break
             band = ds_in.GetRasterBand(i)
             nd = band.GetNoDataValue()
             nodata_vals.append(nd)
@@ -244,6 +234,7 @@ PCA1 · PCA2 · PCA3
         # Carga el cubo (rows, cols, bands)
         cube = np.zeros((rows, cols, nbands), dtype=np.float64)
         for i in range(nbands):
+            if 'feedback' in locals() and feedback.isCanceled(): break
             arr = ds_in.GetRasterBand(i + 1).ReadAsArray().astype(np.float64)
             if nodata_vals[i] is not None:
                 arr[arr == nodata_vals[i]] = np.nan
@@ -293,7 +284,9 @@ PCA1 · PCA2 · PCA3
                 ax.set_yticklabels(band_names_in, fontsize=11)
 
                 for i in range(nbands):
+                    if 'feedback' in locals() and feedback.isCanceled(): break
                     for j in range(nbands):
+                        if 'feedback' in locals() and feedback.isCanceled(): break
                         ax.text(
                             j, i, f"{corr.iloc[i, j]:.2f}",
                             ha="center", va="center",
@@ -323,6 +316,7 @@ PCA1 · PCA2 · PCA3
 
         feedback.pushInfo("📈 % varianza explicada por componente:")
         for i, v in enumerate(var_pct, start=1):
+            if 'feedback' in locals() and feedback.isCanceled(): break
             feedback.pushInfo(f"   PCA{i}: {v:.4f} %")
 
         var_total_3 = var_pct[:3].sum()
@@ -344,6 +338,7 @@ PCA1 · PCA2 · PCA3
         bars = ax.bar(x_pos, var_pct, color=colors, edgecolor="black", linewidth=0.7)
 
         for x, y in zip(x_pos, var_pct):
+            if 'feedback' in locals() and feedback.isCanceled(): break
             ax.annotate(
                 f"{y:.2f}%",
                 (x, y),
@@ -422,6 +417,7 @@ PCA1 · PCA2 · PCA3
         ]
 
         for i in range(3):
+            if 'feedback' in locals() and feedback.isCanceled(): break
             arr = pca_img[:, :, i]
             arr = np.where(np.isnan(arr), nodata_out, arr).astype(np.float32)
             band = ds_out.GetRasterBand(i + 1)

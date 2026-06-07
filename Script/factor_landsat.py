@@ -1,3 +1,4 @@
+from .geomaticape_algorithm import GeomaticapeAlgorithm
 import os
 import tempfile
 import shutil
@@ -11,35 +12,23 @@ from qgis import processing
 from osgeo import gdal
 
 
-class FactorLandsat(QgsProcessingAlgorithm):
+class FactorLandsat(GeomaticapeAlgorithm):
+    _algorithm_name = "factor_landsat"
+    _icon_name = "icon.png"
 
     INPUT_FOLDER = "INPUT_FOLDER"
     OUTPUT_MULTISPECTRAL = "OUTPUT_MULTISPECTRAL"
     OUTPUT_THERMAL = "OUTPUT_THERMAL"
 
-    def name(self):
-        return "factor_landsat"
-
     def displayName(self):
-        return "Factor escala Landsat C2 L2 (SR + LST)"
+        return self.tr("Factor escala Landsat C2 L2 (SR + LST)")
 
     def group(self):
-        return "Conversion"
-
-    def icon(self):
-        from qgis.PyQt.QtGui import QIcon
-        return QIcon(os.path.join(os.path.dirname(__file__), 'icon.png'))
+        return self.tr("Conversion")
 
 
     def groupId(self):
         return "geomaticape_conversion"
-
-    def createInstance(self):
-        return FactorLandsat()
-
-    # ---------------------------------------------------
-    # AYUDA
-    # ---------------------------------------------------
 
     def shortHelpString(self):
         return """
@@ -82,7 +71,7 @@ class FactorLandsat(QgsProcessingAlgorithm):
         self.addParameter(
             QgsProcessingParameterFile(
                 self.INPUT_FOLDER,
-                "Carpeta Landsat Collection 2 L2",
+                self.tr("Carpeta Landsat Collection 2 L2"),
                 behavior=QgsProcessingParameterFile.Folder
             )
         )
@@ -90,14 +79,14 @@ class FactorLandsat(QgsProcessingAlgorithm):
         self.addParameter(
             QgsProcessingParameterRasterDestination(
                 self.OUTPUT_MULTISPECTRAL,
-                "Imagen multiespectral corregida"
+                self.tr("Imagen multiespectral corregida")
             )
         )
 
         self.addParameter(
             QgsProcessingParameterRasterDestination(
                 self.OUTPUT_THERMAL,
-                "Banda térmica °C"
+                self.tr("Banda térmica °C")
             )
         )
 
@@ -117,6 +106,7 @@ class FactorLandsat(QgsProcessingAlgorithm):
         prefijo = None
 
         for archivo in archivos:
+            if feedback.isCanceled(): break
             nombre = archivo.upper()
 
             if nombre.startswith("LC08"):
@@ -186,10 +176,12 @@ class FactorLandsat(QgsProcessingAlgorithm):
         bandas_corregidas = []
 
         for sufijo in bandas_orden:
+            if feedback.isCanceled(): break
 
             archivo_encontrado = None
 
             for archivo in archivos:
+                if feedback.isCanceled(): break
                 if archivo.upper().endswith(sufijo):
                     archivo_encontrado = archivo
                     break
@@ -247,6 +239,7 @@ class FactorLandsat(QgsProcessingAlgorithm):
         thermal_file = None
 
         for archivo in archivos:
+            if feedback.isCanceled(): break
             if archivo.upper().endswith(thermal_suffix):
                 thermal_file = archivo
                 break

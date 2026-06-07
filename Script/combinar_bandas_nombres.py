@@ -128,6 +128,53 @@ def _default_name(path, band_idx=1, layer_name=None):
     return _safe_name(f"{base}_b{band_idx}")
 
 
+def _smart_default_name(path, band_idx=1, layer_name=None):
+    """Detecta automaticamente nombres comunes de bandas Landsat y Sentinel-2."""
+    
+    # 1. Intentar obtener el nombre interno guardado en el archivo (metadatos)
+    n = _detect_band_name_at(path, band_idx)
+    # GDAL a veces devuelve "Band 1", lo ignoramos para usar la deteccion inteligente
+    if n and not re.match(r"^Band\s*\d+$", n, re.IGNORECASE):
+        return n
+
+    # 2. Si no hay nombre interno descriptivo, usamos el nombre del archivo
+    name_up = (layer_name or os.path.basename(path)).upper()
+    
+    if "LC08" in name_up or "LC09" in name_up:
+        if "_B1." in name_up or "_B1_" in name_up or name_up.endswith("_B1"): return "Coastal/Aerosol"
+        if "_B2." in name_up or "_B2_" in name_up or name_up.endswith("_B2"): return "Blue"
+        if "_B3." in name_up or "_B3_" in name_up or name_up.endswith("_B3"): return "Green"
+        if "_B4." in name_up or "_B4_" in name_up or name_up.endswith("_B4"): return "Red"
+        if "_B5." in name_up or "_B5_" in name_up or name_up.endswith("_B5"): return "NIR"
+        if "_B6." in name_up or "_B6_" in name_up or name_up.endswith("_B6"): return "SWIR1"
+        if "_B7." in name_up or "_B7_" in name_up or name_up.endswith("_B7"): return "SWIR2"
+        if "_B10." in name_up or "_B10_" in name_up or name_up.endswith("_B10"): return "Thermal 1"
+        if "_B11." in name_up or "_B11_" in name_up or name_up.endswith("_B11"): return "Thermal 2"
+        
+    elif "S2A" in name_up or "S2B" in name_up or "SENTINEL" in name_up:
+        if "B01" in name_up: return "Aerosol"
+        if "B02" in name_up: return "Blue"
+        if "B03" in name_up: return "Green"
+        if "B04" in name_up: return "Red"
+        if "B05" in name_up: return "Red Edge 1"
+        if "B06" in name_up: return "Red Edge 2"
+        if "B07" in name_up: return "Red Edge 3"
+        if "B08" in name_up: return "NIR"
+        if "B8A" in name_up: return "Red Edge 4"
+        if "B09" in name_up: return "Water vapor"
+        if "B11" in name_up: return "SWIR1"
+        if "B12" in name_up: return "SWIR2"
+
+    # 3. Fallback final al nombre de la capa o archivo
+    if layer_name:
+        if band_idx == 1:
+            return _safe_name(layer_name)
+        return _safe_name(f"{layer_name}_b{band_idx}")
+    base = os.path.splitext(os.path.basename(path))[0]
+    if band_idx == 1:
+        return _safe_name(base)
+    return _safe_name(f"{base}_b{band_idx}")
+
 def _cleanup(paths):
     for p in paths:
         if not p:
@@ -323,8 +370,64 @@ class _DialogFeedback:
 
 
 # ---------------------------------------------------------------------------
-# Picker de capas QGIS
+# Selectores y Dialogos auxiliares
 # ---------------------------------------------------------------------------
+
+class _BandSelectionDialog(QDialog):
+    """Dialogo para elegir que bandas agregar de un raster multibanda."""
+    def __init__(self, filepath, nbands, parent=None):
+        super().__init__(parent)
+        self.setWindowTitle("Seleccionar bandas")
+        self.filepath = filepath
+        self.nbands = nbands
+        self.selected_bands = []
+        self._build_ui()
+
+    def _build_ui(self):
+        v = QVBoxLayout(self)
+        v.addWidget(QLabel(f"El raster tiene {self.nbands} bandas.\n¿Cuales deseas agregar?\n\n{os.path.basename(self.filepath)}"))
+        
+        # Scroll area for checkboxes if there are many bands
+        from qgis.PyQt.QtWidgets import QScrollArea, QCheckBox
+        scroll = QScrollArea()
+        scroll.setWidgetResizable(True)
+        w = QWidget()
+        self.lay_checks = QVBoxLayout(w)
+        
+        self.checks = []
+        for i in range(1, self.nbands + 1):
+            chk = QCheckBox(f"Banda {i}")
+            chk.setChecked(True)  # Seleccionadas por defecto
+            self.lay_checks.addWidget(chk)
+            self.checks.append(chk)
+            
+        self.lay_checks.addStretch(1)
+        scroll.setWidget(w)
+        v.addWidget(scroll)
+        
+        # Botones All / None
+        hb = QHBoxLayout()
+        btn_all = QPushButton("Todas")
+        btn_none = QPushButton("Ninguna")
+        btn_all.clicked.connect(lambda: self._set_all(True))
+        btn_none.clicked.connect(lambda: self._set_all(False))
+        hb.addWidget(btn_all)
+        hb.addWidget(btn_none)
+        v.addLayout(hb)
+        
+        # Ok/Cancel
+        bb = QDialogButtonBox(QDialogButtonBox.Ok | QDialogButtonBox.Cancel)
+        bb.accepted.connect(self.accept)
+        bb.rejected.connect(self.reject)
+        v.addWidget(bb)
+        
+    def _set_all(self, state):
+        for c in self.checks:
+            c.setChecked(state)
+            
+    def get_selected(self):
+        return [i + 1 for i, c in enumerate(self.checks) if c.isChecked()]
+
 
 class _QGISLayerPickerDialog(QDialog):
     """Dialogo modal para escoger capas raster del proyecto QGIS y la
@@ -426,6 +529,8 @@ class _QGISLayerPickerDialog(QDialog):
             self.tbl.setItem(r, 1, it_nb)
 
             combo = QComboBox()
+            if nb > 1:
+                combo.addItem("Todas")
             for i in range(1, nb + 1):
                 combo.addItem(str(i))
             combo.setCurrentIndex(0)
@@ -452,16 +557,23 @@ class _QGISLayerPickerDialog(QDialog):
             lname = it.data(Qt.UserRole + 1) or it.text()
             nb = int(it.data(Qt.UserRole + 2) or 1)
             combo = self.tbl.cellWidget(r, 2)
-            band_idx = int(combo.currentText()) if combo else 1
-            label = f"{lname} (capa QGIS)"
-            default_name = _default_name(src, band_idx, layer_name=lname)
-            out.append({
-                "source_path": src,
-                "source_label": label,
-                "nbands": nb,
-                "band_idx": band_idx,
-                "name": default_name,
-            })
+            sel_text = combo.currentText() if combo else "1"
+            
+            if sel_text == "Todas":
+                bands_to_add = list(range(1, nb + 1))
+            else:
+                bands_to_add = [int(sel_text)]
+                
+            for b_idx in bands_to_add:
+                label = f"{lname} (capa QGIS)"
+                default_name = _smart_default_name(src, b_idx, layer_name=lname)
+                out.append({
+                    "source_path": src,
+                    "source_label": label,
+                    "nbands": nb,
+                    "band_idx": b_idx,
+                    "name": default_name,
+                })
         return out
 
 
@@ -477,6 +589,7 @@ class CombinarBandasNombresDialog(QDialog):
         super().__init__(parent)
         self.setWindowTitle("Combinar bandas con nombres - Geomaticape")
         self.resize(900, 560)
+        self.setAcceptDrops(True)
         self._build_ui()
 
     # ------------------- UI ---------------------------------------------
@@ -507,6 +620,8 @@ class CombinarBandasNombresDialog(QDialog):
         self.table.setColumnWidth(3, 240)
         self.table.verticalHeader().setVisible(False)
         self.table.setSelectionBehavior(QAbstractItemView.SelectRows)
+        # Habilitar arrastrar y soltar en la tabla indirectamente via Dialog
+        self.table.setAcceptDrops(False) 
         self.table.setEditTriggers(
             QAbstractItemView.DoubleClicked
             | QAbstractItemView.EditKeyPressed
@@ -537,14 +652,6 @@ class CombinarBandasNombresDialog(QDialog):
 
         # Opciones + salida
         f = QFormLayout()
-        self.combo_resample = QComboBox()
-        self.combo_resample.addItems(RESAMPLE_METHODS)
-        self.combo_resample.setCurrentText("bilinear")
-        f.addRow("Metodo de remuestreo:", self.combo_resample)
-
-        self.combo_compress = QComboBox()
-        self.combo_compress.addItems(COMPRESS_OPTIONS)
-        f.addRow("Compresion GeoTIFF:", self.combo_compress)
 
         out_widget = QWidget()
         oh = QHBoxLayout(out_widget)
@@ -633,6 +740,58 @@ class CombinarBandasNombresDialog(QDialog):
                 d["nbands"], d["band_idx"], d["name"]
             )
 
+    # ------------------- eventos de arrastrar y soltar -------------------
+
+    def dragEnterEvent(self, event):
+        if event.mimeData().hasUrls():
+            event.acceptProposedAction()
+        else:
+            event.ignore()
+
+    def dragMoveEvent(self, event):
+        if event.mimeData().hasUrls():
+            event.acceptProposedAction()
+        else:
+            event.ignore()
+
+    def dropEvent(self, event):
+        urls = event.mimeData().urls()
+        files = []
+        for u in urls:
+            if u.isLocalFile():
+                f = u.toLocalFile()
+                if f.lower().endswith(('.tif', '.tiff', '.img', '.vrt', '.jp2', '.dat')):
+                    files.append(f)
+                    
+        self._process_dropped_files(files)
+
+    def _process_dropped_files(self, files):
+        for f in files:
+            nb = _band_count(f)
+            if nb > 1:
+                dlg = _BandSelectionDialog(f, nb, self)
+                if (dlg.exec_() if hasattr(dlg, 'exec_') else dlg.exec()) == QDialog.Accepted:
+                    bands_to_add = dlg.get_selected()
+                else:
+                    bands_to_add = [] # cancelo
+            else:
+                bands_to_add = [1]
+                
+            for b_idx in bands_to_add:
+                self._append_row(
+                    source_path=f,
+                    source_label=os.path.basename(f),
+                    nbands=nb,
+                    band_idx=b_idx,
+                    name=_smart_default_name(f, b_idx),
+                )
+        
+        # Auto-rellenar salida si esta vacia
+        if files and self.table.rowCount() > 0 and not self.line_out.text().strip():
+            primer = files[0]
+            base, ext = os.path.splitext(primer)
+            self.line_out.setText(f"{base}_stack{ext}")
+
     # ------------------- acciones ----------------------------------------
 
     def _on_add_file(self):
@@ -641,19 +800,12 @@ class CombinarBandasNombresDialog(QDialog):
             "",
             "Raster (*.tif *.tiff *.img *.vrt *.jp2 *.dat);;Todos (*.*)"
         )
-        for f in files:
-            nb = _band_count(f)
-            self._append_row(
-                source_path=f,
-                source_label=os.path.basename(f),
-                nbands=nb,
-                band_idx=1,
-                name=_default_name(f, 1),
-            )
+        if files:
+            self._process_dropped_files(files)
 
     def _on_add_qgis(self):
         dlg = _QGISLayerPickerDialog(parent=self)
-        if dlg.exec_() != QDialog.Accepted:
+        if (dlg.exec_() if hasattr(dlg, 'exec_') else dlg.exec()) != QDialog.Accepted:
             return
         items = dlg.get_selected()
         if not items:
@@ -735,7 +887,7 @@ class CombinarBandasNombresDialog(QDialog):
                 continue
             n = (d["name"] or "").strip()
             if not n:
-                n = _default_name(p, d["band_idx"])
+                n = _smart_default_name(p, d["band_idx"])
             paths.append(p)
             bands.append(int(d["band_idx"]))
             names.append(_safe_name(n))
@@ -783,8 +935,8 @@ class CombinarBandasNombresDialog(QDialog):
             if r != QMessageBox.Yes:
                 return
 
-        resample = self.combo_resample.currentText()
-        compress = self.combo_compress.currentText()
+        resample = "nearest"
+        compress = "LZW"
 
         progress = QProgressDialog("Procesando...", "Cancelar", 0, 100, self)
         progress.setWindowTitle("Combinar bandas con nombres")
@@ -832,15 +984,41 @@ class CombinarBandasNombresDialog(QDialog):
 # Wrapper invocado desde el menu Geomaticape -> Procesamiento
 # ---------------------------------------------------------------------------
 
-class CombinarBandasNombres:
-    """Lanzador desde el menu del plugin."""
+from .geomaticape_algorithm import GeomaticapeAlgorithm
+from qgis.core import QgsProcessingException
+
+class CombinarBandasNombres(GeomaticapeAlgorithm):
+    """Lanzador desde el menu del plugin y stub para Processing."""
+
+    _algorithm_name = "combinar_bandas_nombres"
+    _icon_name = "combinar_bandas.png"
 
     def __init__(self, iface=None):
+        super().__init__()
         self.iface = iface
 
+    def displayName(self):
+        return self.tr("Combinar bandas con nombres (Red, NIR, SWIR1...)")
+
+    def group(self):
+        return self.tr("Procesamiento")
+
+    def groupId(self):
+        return "geomaticape_procesamiento"
+
+    def shortHelpString(self):
+        return self.tr("Herramienta interactiva para apilar bandas. Úsela desde el menú.")
+
+    def initAlgorithm(self, config=None):
+        pass
+
+    def processAlgorithm(self, parameters, context, feedback):
+        raise QgsProcessingException("Esta herramienta requiere interacción manual. Ejecútela desde el menú Geomaticape.")
+
     def icon(self):
-        return QIcon(os.path.join(os.path.dirname(__file__), "..",
-                                  "Icons", "combinar_bandas.png"))
+        import os
+        from qgis.PyQt.QtGui import QIcon
+        return QIcon(os.path.join(os.path.dirname(__file__), "..", "Icons", self._icon_name))
 
     def run(self):
         parent = None
@@ -851,4 +1029,4 @@ class CombinarBandasNombres:
         except Exception:
             parent = None
         dlg = CombinarBandasNombresDialog(parent=parent)
-        dlg.exec_()
+        (dlg.exec_() if hasattr(dlg, 'exec_') else dlg.exec())

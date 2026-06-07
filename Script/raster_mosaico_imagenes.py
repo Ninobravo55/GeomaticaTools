@@ -1,3 +1,4 @@
+from .geomaticape_algorithm import GeomaticapeAlgorithm
 # -*- coding: utf-8 -*-
 """
 raster_mosaico_imagenes.py  ·  GeomaticaPE v1.2.5
@@ -58,7 +59,9 @@ _RESAMPLE_LABEL = [
 
 # ──────────────────────────────────────────────────────────────────────────────
 
-class RasterMosaicoImagenes(QgsProcessingAlgorithm):
+class RasterMosaicoImagenes(GeomaticapeAlgorithm):
+    _algorithm_name = "raster_mosaico_imagenes"
+    _icon_name = "default.png"
 
     RASTERLIST = 'RASTERLIST'
     RESOLUTION = 'RESOLUTION'
@@ -68,30 +71,19 @@ class RasterMosaicoImagenes(QgsProcessingAlgorithm):
     MOSAIC     = 'MOSAIC'
     OPEN       = 'OPEN'
 
-    def createInstance(self):
-        return RasterMosaicoImagenes()
-
-    def name(self):
-        return 'raster_mosaico_imagenes'
-
     def displayName(self):
-        return 'Mosaico de imágenes'
+        return self.tr('Mosaico de imágenes')
 
     def group(self):
-        return 'Ráster'
+        return self.tr('Procesamiento')
 
     def groupId(self):
-        return 'raster_geo'
+        return 'geomaticape_procesamiento'
 
     def tags(self):
         return ['mosaico', 'merge', 'combinar', 'imagen', 'raster',
                 'multiespectral', 'recorte', 'zona', 'sentinel', 'landsat',
                 'clip', 'nodata', 'rasterio']
-
-    def icon(self):
-        return QIcon(os.path.join(
-            os.path.dirname(os.path.dirname(__file__)), 'Icons', 'indices.png'
-        ))
 
     def shortHelpString(self):
         return (
@@ -117,14 +109,14 @@ class RasterMosaicoImagenes(QgsProcessingAlgorithm):
         self.addParameter(
             QgsProcessingParameterMultipleLayers(
                 self.RASTERLIST,
-                'Imágenes multiespectrales a mosaiquear',
+                self.tr('Imágenes multiespectrales a mosaiquear'),
                 layerType=QgsProcessing.TypeRaster
             )
         )
         self.addParameter(
             QgsProcessingParameterNumber(
                 self.RESOLUTION,
-                'Resolución de salida (m)  —  0 = resolución original',
+                self.tr('Resolución de salida (m)  —  0 = resolución original'),
                 type=QgsProcessingParameterNumber.Double,
                 defaultValue=0.0,
                 minValue=0.0,
@@ -133,7 +125,7 @@ class RasterMosaicoImagenes(QgsProcessingAlgorithm):
         self.addParameter(
             QgsProcessingParameterEnum(
                 self.METODO,
-                'Método de mosaico (tratamiento de solapamiento)',
+                self.tr('Método de mosaico (tratamiento de solapamiento)'),
                 options=_METODOS_LABEL,
                 defaultValue=0
             )
@@ -141,7 +133,7 @@ class RasterMosaicoImagenes(QgsProcessingAlgorithm):
         self.addParameter(
             QgsProcessingParameterEnum(
                 self.RESAMPLING,
-                'Método de interpolación (remuestreo)',
+                self.tr('Método de interpolación (remuestreo)'),
                 options=_RESAMPLE_LABEL,
                 defaultValue=0
             )
@@ -149,7 +141,7 @@ class RasterMosaicoImagenes(QgsProcessingAlgorithm):
         self.addParameter(
             QgsProcessingParameterFeatureSource(
                 self.FRAME,
-                'Zona de estudio – recorte previo al mosaico (opcional)',
+                self.tr('Zona de estudio – recorte previo al mosaico (opcional)'),
                 types=[QgsProcessing.TypeVectorPolygon],
                 optional=True
             )
@@ -157,14 +149,14 @@ class RasterMosaicoImagenes(QgsProcessingAlgorithm):
         self.addParameter(
             QgsProcessingParameterFileDestination(
                 self.MOSAIC,
-                'Mosaico de salida',
+                self.tr('Mosaico de salida'),
                 fileFilter='GeoTIFF (*.tif *.tiff)'
             )
         )
         self.addParameter(
             QgsProcessingParameterBoolean(
                 self.OPEN,
-                'Cargar mosaico en el proyecto QGIS al finalizar',
+                self.tr('Cargar mosaico en el proyecto QGIS al finalizar'),
                 defaultValue=True
             )
         )

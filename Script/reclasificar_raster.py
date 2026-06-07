@@ -1,3 +1,4 @@
+from .geomaticape_algorithm import GeomaticapeAlgorithm
 """
 Reclasificar Raster
 ===================
@@ -40,7 +41,9 @@ DTYPE_NP   = [np.int16, np.uint8, np.uint16, np.int32, np.float32]
 NODATA_BY_DTYPE = [-9999, 255, 65535, -9999, -9999.0]
 
 
-class ReclasificarRaster(QgsProcessingAlgorithm):
+class ReclasificarRaster(GeomaticapeAlgorithm):
+    _algorithm_name = "reclasificar_raster"
+    _icon_name = "clasificacion.png"
 
     INPUT_RASTER  = "INPUT_RASTER"
     BAND          = "BAND"
@@ -49,23 +52,14 @@ class ReclasificarRaster(QgsProcessingAlgorithm):
     DTYPE         = "DTYPE"
     OUTPUT_RASTER = "OUTPUT_RASTER"
 
-    def name(self):
-        return "reclasificar_raster"
-
     def displayName(self):
-        return "Reclasificar raster (remapeo de valores)"
+        return self.tr("Reclasificar raster (remapeo de valores)")
 
     def group(self):
-        return "PostProcesamiento"
+        return self.tr("PostProcesamiento")
 
     def groupId(self):
         return "geomaticape_postprocesamiento"
-
-    def icon(self):
-        return QIcon(os.path.join(os.path.dirname(__file__), "..", "Icons", "clasificacion.png"))
-
-    def createInstance(self):
-        return ReclasificarRaster()
 
     def shortHelpString(self):
         return """
@@ -115,14 +109,14 @@ Valor anterior | Nuevo valor
         self.addParameter(
             QgsProcessingParameterRasterLayer(
                 self.INPUT_RASTER,
-                "Raster clasificado de entrada"
+                self.tr("Raster clasificado de entrada")
             )
         )
 
         self.addParameter(
             QgsProcessingParameterBand(
                 self.BAND,
-                "Banda a reclasificar",
+                self.tr("Banda a reclasificar"),
                 parentLayerParameterName=self.INPUT_RASTER,
                 optional=False
             )
@@ -131,7 +125,7 @@ Valor anterior | Nuevo valor
         self.addParameter(
             QgsProcessingParameterMatrix(
                 self.TABLE,
-                "Tabla de remapeo  (Valor anterior | Nuevo valor)",
+                self.tr("Tabla de remapeo  (Valor anterior | Nuevo valor)"),
                 headers=["Valor anterior", "Nuevo valor"],
                 defaultValue=[
                     1, 1,
@@ -146,7 +140,7 @@ Valor anterior | Nuevo valor
         self.addParameter(
             QgsProcessingParameterBoolean(
                 self.KEEP_UNMAPPED,
-                "Conservar valores no mapeados (desactivado -> NoData)",
+                self.tr("Conservar valores no mapeados (desactivado -> NoData)"),
                 defaultValue=False
             )
         )
@@ -154,7 +148,7 @@ Valor anterior | Nuevo valor
         self.addParameter(
             QgsProcessingParameterEnum(
                 self.DTYPE,
-                "Tipo de dato de salida",
+                self.tr("Tipo de dato de salida"),
                 options=DTYPE_OPTIONS,
                 defaultValue=0,
                 allowMultiple=False
@@ -164,7 +158,7 @@ Valor anterior | Nuevo valor
         self.addParameter(
             QgsProcessingParameterRasterDestination(
                 self.OUTPUT_RASTER,
-                "Raster reclasificado"
+                self.tr("Raster reclasificado")
             )
         )
 
@@ -197,6 +191,7 @@ Valor anterior | Nuevo valor
         rules    = []
         seen_old = set()
         for i in range(0, len(flat), 2):
+            if 'feedback' in locals() and feedback.isCanceled(): break
             try:
                 v_old = float(flat[i])
                 v_new = float(flat[i + 1])
@@ -219,6 +214,7 @@ Valor anterior | Nuevo valor
         feedback.pushInfo("Conservar no mapeados: {}".format("Si" if keep_unmapped else "No -> NoData"))
         feedback.pushInfo("-" * 50)
         for r in rules:
+            if 'feedback' in locals() and feedback.isCanceled(): break
             feedback.pushInfo("  {:>8.2f}  ->  {:>8.2f}".format(r["old"], r["new"]))
         feedback.pushInfo("=" * 50)
 
@@ -258,6 +254,7 @@ Valor anterior | Nuevo valor
             resultado = np.full(arr.shape, nodata_out, dtype=np_dtype)
 
         for i, r in enumerate(rules):
+            if 'feedback' in locals() and feedback.isCanceled(): break
             mask = (arr == r["old"]) & ~nodata_mask
             resultado[mask] = np_dtype(r["new"])
             feedback.setProgress(25 + int((i + 1) / len(rules) * 60))
@@ -269,6 +266,7 @@ Valor anterior | Nuevo valor
         new_vals = sorted(set(r["new"] for r in rules))
         feedback.pushInfo("Pixeles por nuevo valor:")
         for v in new_vals:
+            if 'feedback' in locals() and feedback.isCanceled(): break
             n_pix   = int(np.sum(resultado == np_dtype(v)))
             area_ha = n_pix * pixel_area_m2 / 10_000
             feedback.pushInfo("  Valor {:>4.0f} -> {:>12,} px  |  {:>12,.4f} ha".format(

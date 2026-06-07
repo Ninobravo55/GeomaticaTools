@@ -1,3 +1,4 @@
+from .geomaticape_algorithm import GeomaticapeAlgorithm
 import os
 import gc
 import numpy as np
@@ -140,7 +141,9 @@ INDEX_KEYS = list(INDICES.keys())
 BAND_ROLES = ["BLUE", "GREEN", "RED", "REDEDGE", "NIR", "SWIR1", "SWIR2"]
 
 
-class IndicesEspectrales(QgsProcessingAlgorithm):
+class IndicesEspectrales(GeomaticapeAlgorithm):
+    _algorithm_name = "indices_espectrales"
+    _icon_name = "indices.png"
     """
     Calcula indices espectrales (NDVI, SAVI, EVI, NDWI, NBR, NDSI, etc.)
     a partir de una imagen multiespectral. El usuario elige el indice y
@@ -176,28 +179,14 @@ class IndicesEspectrales(QgsProcessingAlgorithm):
     # IDENTIFICACION
     # -------------------------------------------------------
 
-    def name(self):
-        return "indices_espectrales"
-
     def displayName(self):
-        return "Indices espectrales (NDVI, SAVI, EVI, NDWI, NBR, NDSI...)"
+        return self.tr("Indices espectrales (NDVI, SAVI, EVI, NDWI, NBR, NDSI...)")
 
     def group(self):
-        return "Procesamiento"
+        return self.tr("Procesamiento")
 
     def groupId(self):
         return "geomaticape_procesamiento"
-
-    def icon(self):
-        from qgis.PyQt.QtGui import QIcon
-        return QIcon(os.path.join(os.path.dirname(__file__), "..", "Icons", "indices.png"))
-
-    def createInstance(self):
-        return IndicesEspectrales()
-
-    # -------------------------------------------------------
-    # AYUDA
-    # -------------------------------------------------------
 
     def shortHelpString(self):
         rows = []
@@ -246,7 +235,7 @@ y CRS conservados de la imagen de entrada.
         self.addParameter(
             QgsProcessingParameterRasterLayer(
                 self.INPUT_RASTER,
-                "Imagen multiespectral de entrada"
+                self.tr("Imagen multiespectral de entrada")
             )
         )
 
@@ -255,7 +244,7 @@ y CRS conservados de la imagen de entrada.
         self.addParameter(
             QgsProcessingParameterEnum(
                 self.INDEX_TYPE,
-                "Indice espectral a calcular",
+                self.tr("Indice espectral a calcular"),
                 options=labels,
                 defaultValue=0,  # NDVI por defecto
                 allowMultiple=False
@@ -266,7 +255,7 @@ y CRS conservados de la imagen de entrada.
         self.addParameter(
             QgsProcessingParameterBand(
                 self.BAND_BLUE,
-                "Banda BLUE  (azul) - usada por: EVI, BSI, VARI",
+                self.tr("Banda BLUE  (azul) - usada por: EVI, BSI, VARI"),
                 parentLayerParameterName=self.INPUT_RASTER,
                 optional=True
             )
@@ -275,7 +264,7 @@ y CRS conservados de la imagen de entrada.
         self.addParameter(
             QgsProcessingParameterBand(
                 self.BAND_GREEN,
-                "Banda GREEN (verde) - usada por: NDWI, MNDWI, NDSI, GNDVI, GCI, VARI, NGRDI",
+                self.tr("Banda GREEN (verde) - usada por: NDWI, MNDWI, NDSI, GNDVI, GCI, VARI, NGRDI"),
                 parentLayerParameterName=self.INPUT_RASTER,
                 optional=True
             )
@@ -284,7 +273,7 @@ y CRS conservados de la imagen de entrada.
         self.addParameter(
             QgsProcessingParameterBand(
                 self.BAND_RED,
-                "Banda RED (rojo) - usada por: NDVI, SAVI, MSAVI, EVI, EVI2, BSI, VARI, NGRDI",
+                self.tr("Banda RED (rojo) - usada por: NDVI, SAVI, MSAVI, EVI, EVI2, BSI, VARI, NGRDI"),
                 parentLayerParameterName=self.INPUT_RASTER,
                 optional=True
             )
@@ -293,7 +282,7 @@ y CRS conservados de la imagen de entrada.
         self.addParameter(
             QgsProcessingParameterBand(
                 self.BAND_REDEDGE,
-                "Banda RED EDGE (borde rojo) - usada por: NDREI  (Sentinel-2 B5/B6/B7)",
+                self.tr("Banda RED EDGE (borde rojo) - usada por: NDREI  (Sentinel-2 B5/B6/B7)"),
                 parentLayerParameterName=self.INPUT_RASTER,
                 optional=True
             )
@@ -302,7 +291,7 @@ y CRS conservados de la imagen de entrada.
         self.addParameter(
             QgsProcessingParameterBand(
                 self.BAND_NIR,
-                "Banda NIR (infrarrojo cercano) - usada por casi todos los indices vegetacion/agua",
+                self.tr("Banda NIR (infrarrojo cercano) - usada por casi todos los indices vegetacion/agua"),
                 parentLayerParameterName=self.INPUT_RASTER,
                 optional=True
             )
@@ -311,7 +300,7 @@ y CRS conservados de la imagen de entrada.
         self.addParameter(
             QgsProcessingParameterBand(
                 self.BAND_SWIR1,
-                "Banda SWIR1 - usada por: MNDWI, NDMI, NDSI, BSI, NBR2",
+                self.tr("Banda SWIR1 - usada por: MNDWI, NDMI, NDSI, BSI, NBR2"),
                 parentLayerParameterName=self.INPUT_RASTER,
                 optional=True
             )
@@ -320,7 +309,7 @@ y CRS conservados de la imagen de entrada.
         self.addParameter(
             QgsProcessingParameterBand(
                 self.BAND_SWIR2,
-                "Banda SWIR2 - usada por: NBR, NBR2",
+                self.tr("Banda SWIR2 - usada por: NBR, NBR2"),
                 parentLayerParameterName=self.INPUT_RASTER,
                 optional=True
             )
@@ -329,7 +318,7 @@ y CRS conservados de la imagen de entrada.
         self.addParameter(
             QgsProcessingParameterRasterDestination(
                 self.OUTPUT_RASTER,
-                "Raster del indice (1 banda Float32)"
+                self.tr("Raster del indice (1 banda Float32)")
             )
         )
 
@@ -359,6 +348,7 @@ y CRS conservados de la imagen de entrada.
         # Leer numero de banda asignado a cada rol (None si no se asigno)
         band_assignment = {}
         for role, pname in self.ROLE_PARAM.items():
+            if 'feedback' in locals() and feedback.isCanceled(): break
             try:
                 val = self.parameterAsInt(parameters, pname, context)
             except Exception:
@@ -392,6 +382,7 @@ y CRS conservados de la imagen de entrada.
 
         # Verificar que los numeros de banda asignados existen en el raster
         for role in index_def["bands"]:
+            if 'feedback' in locals() and feedback.isCanceled(): break
             n = band_assignment[role]
             if n < 1 or n > nbands:
                 raise QgsProcessingException(
@@ -407,6 +398,7 @@ y CRS conservados de la imagen de entrada.
         feedback.pushInfo("Leyendo bandas requeridas...")
         bandas = {}
         for role in index_def["bands"]:
+            if 'feedback' in locals() and feedback.isCanceled(): break
             n = band_assignment[role]
             band = ds_in.GetRasterBand(n)
             arr = band.ReadAsArray().astype(np.float64)

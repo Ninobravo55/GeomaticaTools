@@ -1,3 +1,4 @@
+from .geomaticape_algorithm import GeomaticapeAlgorithm
 import os
 import tempfile
 import shutil
@@ -13,7 +14,9 @@ from qgis import processing
 from osgeo import gdal, ogr, osr
 
 
-class CBERS04APansharp(QgsProcessingAlgorithm):
+class CBERS04APansharp(GeomaticapeAlgorithm):
+    _algorithm_name = "cbers04a_pansharp"
+    _icon_name = "cbers04a.png"
 
     INPUT_FOLDER = "INPUT_FOLDER"
     INPUT_AOI    = "INPUT_AOI"
@@ -24,28 +27,14 @@ class CBERS04APansharp(QgsProcessingAlgorithm):
     # IDENTIFICACIÓN
     # -------------------------------------------------------
 
-    def name(self):
-        return "cbers04a_pansharp"
-
     def displayName(self):
-        return "CBERS-04A Pansharpening Brovey 2m"
+        return self.tr("CBERS-04A Pansharpening Brovey 2m")
 
     def group(self):
-        return "Procesamiento"
+        return self.tr("Procesamiento")
 
     def groupId(self):
         return "geomaticape_procesamiento"
-
-    def icon(self):
-        from qgis.PyQt.QtGui import QIcon
-        return QIcon(os.path.join(os.path.dirname(__file__), "..", "Icons", "cbers04a.png"))
-
-    def createInstance(self):
-        return CBERS04APansharp()
-
-    # -------------------------------------------------------
-    # AYUDA
-    # -------------------------------------------------------
 
     def shortHelpString(self):
         return """
@@ -91,7 +80,7 @@ B1_Blue · B2_Green · B3_Red · B4_Nir
         self.addParameter(
             QgsProcessingParameterFile(
                 self.INPUT_FOLDER,
-                "Carpeta de escena CBERS-04A",
+                self.tr("Carpeta de escena CBERS-04A"),
                 behavior=QgsProcessingParameterFile.Folder
             )
         )
@@ -99,7 +88,7 @@ B1_Blue · B2_Green · B3_Red · B4_Nir
         self.addParameter(
             QgsProcessingParameterVectorLayer(
                 self.INPUT_AOI,
-                "AOI — Área de recorte (shapefile polígono)",
+                self.tr("AOI — Área de recorte (shapefile polígono)"),
                 optional=False
             )
         )
@@ -107,14 +96,14 @@ B1_Blue · B2_Green · B3_Red · B4_Nir
         self.addParameter(
             QgsProcessingParameterRasterDestination(
                 self.OUTPUT_MS,
-                "MS recortado (4 bandas, resolución 8m)"
+                self.tr("MS recortado (4 bandas, resolución 8m)")
             )
         )
 
         self.addParameter(
             QgsProcessingParameterRasterDestination(
                 self.OUTPUT_PS,
-                "Imagen Pansharpenizada Brovey 2m"
+                self.tr("Imagen Pansharpenizada Brovey 2m")
             )
         )
 
@@ -192,6 +181,7 @@ B1_Blue · B2_Green · B3_Red · B4_Nir
 
         geom_list = []
         for feat in aoi_layer.getFeatures():
+            if feedback.isCanceled(): break
             ogr_geom = ogr.CreateGeometryFromWkt(feat.geometry().asWkt())
             ogr_geom.Transform(transform_obj)
             geom_list.append(ogr_geom.ExportToWkt())

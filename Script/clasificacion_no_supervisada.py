@@ -1,3 +1,4 @@
+from .geomaticape_algorithm import GeomaticapeAlgorithm
 import os
 import gc
 import numpy as np
@@ -25,7 +26,9 @@ METHODS = [
 METHOD_KEYS = ["kmeans", "minibatch", "gmm", "isodata", "birch"]
 
 
-class ClasificacionNoSupervisada(QgsProcessingAlgorithm):
+class ClasificacionNoSupervisada(GeomaticapeAlgorithm):
+    _algorithm_name = "clasificacion_no_supervisada"
+    _icon_name = "clasificacion.png"
     """
     Clasificacion no supervisada de imagenes multiespectrales.
     El usuario elige el numero de clases y el metodo.
@@ -44,28 +47,14 @@ class ClasificacionNoSupervisada(QgsProcessingAlgorithm):
     # IDENTIFICACION
     # -------------------------------------------------------
 
-    def name(self):
-        return "clasificacion_no_supervisada"
-
     def displayName(self):
-        return "Clasificacion no supervisada (K-Means / GMM / ISODATA / Birch)"
+        return self.tr("Clasificacion no supervisada (K-Means / GMM / ISODATA / Birch)")
 
     def group(self):
-        return "Procesamiento"
+        return self.tr("Procesamiento")
 
     def groupId(self):
         return "geomaticape_procesamiento"
-
-    def icon(self):
-        from qgis.PyQt.QtGui import QIcon
-        return QIcon(os.path.join(os.path.dirname(__file__), "..", "Icons", "clasificacion.png"))
-
-    def createInstance(self):
-        return ClasificacionNoSupervisada()
-
-    # -------------------------------------------------------
-    # AYUDA
-    # -------------------------------------------------------
 
     def shortHelpString(self):
         return """
@@ -131,14 +120,14 @@ clustering. Recomendado para combinar bandas con escalas distintas.</li>
         self.addParameter(
             QgsProcessingParameterRasterLayer(
                 self.INPUT_RASTER,
-                "Imagen multiespectral de entrada"
+                self.tr("Imagen multiespectral de entrada")
             )
         )
 
         self.addParameter(
             QgsProcessingParameterEnum(
                 self.METHOD,
-                "Metodo de clasificacion no supervisada",
+                self.tr("Metodo de clasificacion no supervisada"),
                 options=METHODS,
                 defaultValue=0,
                 allowMultiple=False
@@ -148,7 +137,7 @@ clustering. Recomendado para combinar bandas con escalas distintas.</li>
         self.addParameter(
             QgsProcessingParameterNumber(
                 self.N_CLASSES,
-                "Numero de clases (K)",
+                self.tr("Numero de clases (K)"),
                 type=QgsProcessingParameterNumber.Integer,
                 defaultValue=5,
                 minValue=2,
@@ -159,7 +148,7 @@ clustering. Recomendado para combinar bandas con escalas distintas.</li>
         self.addParameter(
             QgsProcessingParameterNumber(
                 self.SAMPLE_SIZE,
-                "Tamano de muestra de entrenamiento (pixeles)",
+                self.tr("Tamano de muestra de entrenamiento (pixeles)"),
                 type=QgsProcessingParameterNumber.Integer,
                 defaultValue=100000,
                 minValue=1000,
@@ -170,7 +159,7 @@ clustering. Recomendado para combinar bandas con escalas distintas.</li>
         self.addParameter(
             QgsProcessingParameterBoolean(
                 self.STANDARDIZE,
-                "Estandarizar bandas (StandardScaler) - recomendado",
+                self.tr("Estandarizar bandas (StandardScaler) - recomendado"),
                 defaultValue=True
             )
         )
@@ -178,7 +167,7 @@ clustering. Recomendado para combinar bandas con escalas distintas.</li>
         self.addParameter(
             QgsProcessingParameterNumber(
                 self.RANDOM_SEED,
-                "Semilla aleatoria (reproducibilidad)",
+                self.tr("Semilla aleatoria (reproducibilidad)"),
                 type=QgsProcessingParameterNumber.Integer,
                 defaultValue=42,
                 minValue=0,
@@ -189,7 +178,7 @@ clustering. Recomendado para combinar bandas con escalas distintas.</li>
         self.addParameter(
             QgsProcessingParameterRasterDestination(
                 self.OUTPUT_RASTER,
-                "Raster de clases (Int16, 1 banda)"
+                self.tr("Raster de clases (Int16, 1 banda)")
             )
         )
 
@@ -385,6 +374,7 @@ clustering. Recomendado para combinar bandas con escalas distintas.</li>
         chunk = 500_000
         labels = np.empty(n_total, dtype=np.int32)
         for start in range(0, n_total, chunk):
+            if feedback.isCanceled(): break
             end = min(start + chunk, n_total)
             block = datos_validos_std[start:end]
             labels[start:end] = model.predict(block)

@@ -1,3 +1,4 @@
+from .geomaticape_algorithm import GeomaticapeAlgorithm
 """
 Extraer bandas de imagenes multiespectrales
 ============================================
@@ -134,7 +135,9 @@ def _info_basica(path):
     return info
 
 
-class ExtraerBandasMultiespectral(QgsProcessingAlgorithm):
+class ExtraerBandasMultiespectral(GeomaticapeAlgorithm):
+    _algorithm_name = "extraer_bandas_multiespectral"
+    _icon_name = "extraer_bandas.png"
 
     INPUT_RASTER = "INPUT_RASTER"
     BANDS = "BANDS"
@@ -146,24 +149,14 @@ class ExtraerBandasMultiespectral(QgsProcessingAlgorithm):
         # Llenamos la lista de bandas la primera vez que se conoce el raster
         self._opciones_cache = ["(carga la imagen para ver bandas)"]
 
-    def name(self):
-        return "extraer_bandas_multiespectral"
-
     def displayName(self):
-        return "Extraer bandas de imagenes multiespectrales"
+        return self.tr("Extraer bandas de imagenes multiespectrales")
 
     def group(self):
-        return "Procesamiento"
+        return self.tr("Procesamiento")
 
     def groupId(self):
         return "geomaticape_procesamiento"
-
-    def icon(self):
-        return QIcon(os.path.join(os.path.dirname(__file__), "..",
-                                  "Icons", "extraer_bandas.png"))
-
-    def createInstance(self):
-        return ExtraerBandasMultiespectral()
 
     def shortHelpString(self):
         return """
@@ -194,24 +187,24 @@ original. Compresion LZW.
 
     def initAlgorithm(self, config=None):
         self.addParameter(QgsProcessingParameterRasterLayer(
-            self.INPUT_RASTER, "Imagen multiespectral"
+            self.INPUT_RASTER, self.tr("Imagen multiespectral")
         ))
         # Las opciones se generan dinamicamente al ejecutar; aqui usamos un
         # placeholder que QGIS tolera.
         self.addParameter(QgsProcessingParameterString(
             self.BANDS,
-            "Bandas a extraer (numeros separados por coma; vacio = todas)",
+            self.tr("Bandas a extraer (numeros separados por coma; vacio = todas)"),
             defaultValue="",
             optional=True
         ))
         self.addParameter(QgsProcessingParameterString(
             self.PREFIX,
-            "Prefijo del nombre de archivo (vacio = nombre del raster)",
+            self.tr("Prefijo del nombre de archivo (vacio = nombre del raster)"),
             defaultValue="",
             optional=True
         ))
         self.addParameter(QgsProcessingParameterFolderDestination(
-            self.OUT_FOLDER, "Carpeta de salida"
+            self.OUT_FOLDER, self.tr("Carpeta de salida")
         ))
 
     def processAlgorithm(self, parameters, context, feedback):

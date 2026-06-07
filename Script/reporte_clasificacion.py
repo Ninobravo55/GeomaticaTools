@@ -1,3 +1,4 @@
+from .geomaticape_algorithm import GeomaticapeAlgorithm
 """
 Reporte de Clasificacion Raster
 ================================
@@ -29,7 +30,9 @@ from qgis import processing
 from osgeo import gdal
 
 
-class ReporteClasificacion(QgsProcessingAlgorithm):
+class ReporteClasificacion(GeomaticapeAlgorithm):
+    _algorithm_name = "reporte_clasificacion"
+    _icon_name = "zonal_raster.png"
 
     INPUT_RASTER = "INPUT_RASTER"
     BAND         = "BAND"
@@ -40,27 +43,14 @@ class ReporteClasificacion(QgsProcessingAlgorithm):
     # IDENTIFICACION
     # -------------------------------------------------------
 
-    def name(self):
-        return "reporte_clasificacion"
-
     def displayName(self):
-        return "Reporte de clasificacion raster (area, porcentaje, estadisticas)"
+        return self.tr("Reporte de clasificacion raster (area, porcentaje, estadisticas)")
 
     def group(self):
-        return "PostProcesamiento"
+        return self.tr("PostProcesamiento")
 
     def groupId(self):
         return "geomaticape_postprocesamiento"
-
-    def icon(self):
-        return QIcon(os.path.join(os.path.dirname(__file__), "..", "Icons", "zonal_raster.png"))
-
-    def createInstance(self):
-        return ReporteClasificacion()
-
-    # -------------------------------------------------------
-    # AYUDA
-    # -------------------------------------------------------
 
     def shortHelpString(self):
         return """
@@ -110,14 +100,14 @@ Ademas se genera un CSV con la misma tabla para uso en SIG o scripts.<br><br>
         self.addParameter(
             QgsProcessingParameterRasterLayer(
                 self.INPUT_RASTER,
-                "Raster clasificado (valores categoricos enteros)"
+                self.tr("Raster clasificado (valores categoricos enteros)")
             )
         )
 
         self.addParameter(
             QgsProcessingParameterBand(
                 self.BAND,
-                "Banda del raster clasificado",
+                self.tr("Banda del raster clasificado"),
                 parentLayerParameterName=self.INPUT_RASTER,
                 optional=False
             )
@@ -126,7 +116,7 @@ Ademas se genera un CSV con la misma tabla para uso en SIG o scripts.<br><br>
         self.addParameter(
             QgsProcessingParameterMatrix(
                 self.LEGEND_TABLE,
-                "Leyenda de clases  (Valor clase | Etiqueta) - opcional",
+                self.tr("Leyenda de clases  (Valor clase | Etiqueta) - opcional"),
                 headers=["Valor clase", "Etiqueta"],
                 defaultValue=[
                     1, "Agua / Nube",
@@ -142,7 +132,7 @@ Ademas se genera un CSV con la misma tabla para uso en SIG o scripts.<br><br>
         self.addParameter(
             QgsProcessingParameterFileDestination(
                 self.OUTPUT,
-                "Reporte Excel de salida",
+                self.tr("Reporte Excel de salida"),
                 fileFilter="Excel (*.xlsx)"
             )
         )
@@ -291,6 +281,7 @@ Ademas se genera un CSV con la misma tabla para uso en SIG o scripts.<br><br>
         registros = []
 
         for i, cls in enumerate(clases_unicas):
+            if 'feedback' in locals() and feedback.isCanceled(): break
             cls_int = int(cls)
             mask    = (arr == cls) & ~nodata_mask
             n_pix   = int(np.sum(mask))
@@ -364,6 +355,7 @@ Ademas se genera un CSV con la misma tabla para uso en SIG o scripts.<br><br>
             w = csv.DictWriter(f, fieldnames=cols_out, extrasaction="ignore")
             w.writeheader()
             for r in registros:
+                if 'feedback' in locals() and feedback.isCanceled(): break
                 w.writerow(r)
 
         # ---------------------------------------------------
@@ -416,6 +408,7 @@ Ademas se genera un CSV con la misma tabla para uso en SIG o scripts.<br><br>
             ("Area total:",        "{:,.4f} ha".format(area_total_ha)),
         ]
         for row_i, (k, v) in enumerate(meta, start=2):
+            if 'feedback' in locals() and feedback.isCanceled(): break
             ws["A{}".format(row_i)] = k
             ws["B{}".format(row_i)] = v
             ws["A{}".format(row_i)].font = Font(bold=True, size=10)
@@ -438,6 +431,7 @@ Ademas se genera un CSV con la misma tabla para uso en SIG o scripts.<br><br>
             "Indice_Forma":    "Indice\nForma",
         }
         for col_i, col_key in enumerate(cols_out, start=1):
+            if 'feedback' in locals() and feedback.isCanceled(): break
             cell = ws.cell(row=ROW_START, column=col_i,
                            value=header_labels.get(col_key, col_key))
             cell.font = hdr_font; cell.fill = hdr_fill
@@ -448,13 +442,16 @@ Ademas se genera un CSV con la misma tabla para uso en SIG o scripts.<br><br>
         ws.column_dimensions["A"].width = 10
         ws.column_dimensions["B"].width = 28
         for col_i in range(3, len(cols_out) + 1):
+            if 'feedback' in locals() and feedback.isCanceled(): break
             ws.column_dimensions[get_column_letter(col_i)].width = 14
 
         # -- Filas de datos --
         for r_i, rec in enumerate(registros):
+            if 'feedback' in locals() and feedback.isCanceled(): break
             row_excel = ROW_START + 1 + r_i
             is_total  = (rec["Valor_Clase"] == "TOTAL")
             for col_i, col_key in enumerate(cols_out, start=1):
+                if 'feedback' in locals() and feedback.isCanceled(): break
                 val  = rec.get(col_key, "")
                 cell = ws.cell(row=row_excel, column=col_i, value=val)
                 cell.border = border
@@ -485,6 +482,7 @@ Ademas se genera un CSV con la misma tabla para uso en SIG o scripts.<br><br>
         wg["B1"] = "Area_ha"
         wg["C1"] = "Pct_Area_Valida"
         for gi, r in enumerate(reg_graf, start=2):
+            if 'feedback' in locals() and feedback.isCanceled(): break
             wg.cell(row=gi, column=1, value=r["Etiqueta"])
             wg.cell(row=gi, column=2, value=r["Area_ha"])
             wg.cell(row=gi, column=3, value=r["Pct_Area_Valida"])

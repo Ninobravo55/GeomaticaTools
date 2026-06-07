@@ -1,3 +1,4 @@
+from .geomaticape_algorithm import GeomaticapeAlgorithm
 # -*- coding: utf-8 -*-
 """
 firma_espectral.py  ·  GeomaticaPE v1.2.6
@@ -100,7 +101,9 @@ COLORES = [
 
 # ──────────────────────────────────────────────────────────────────────────────
 
-class FirmaEspectral(QgsProcessingAlgorithm):
+class FirmaEspectral(GeomaticapeAlgorithm):
+    _algorithm_name = "firma_espectral"
+    _icon_name = "default.png"
 
     RASTER   = 'RASTER'
     PUNTOS   = 'PUNTOS'
@@ -109,17 +112,11 @@ class FirmaEspectral(QgsProcessingAlgorithm):
     EXCEL    = 'EXCEL'
     GRAFICO  = 'GRAFICO'
 
-    def createInstance(self):
-        return FirmaEspectral()
-
-    def name(self):
-        return 'firma_espectral'
-
     def displayName(self):
-        return 'Firma espectral (Landsat 5/7/8/9 · Sentinel-2 · ASTER)'
+        return self.tr('Firma espectral (Landsat 5/7/8/9 · Sentinel-2 · ASTER)')
 
     def group(self):
-        return 'Procesamiento'
+        return self.tr('Procesamiento')
 
     def groupId(self):
         return 'procesamiento'
@@ -128,11 +125,6 @@ class FirmaEspectral(QgsProcessingAlgorithm):
         return ['firma', 'espectral', 'landsat', 'sentinel', 'aster',
                 'reflectancia', 'cobertura', 'clase', 'muestreo',
                 'longitud de onda', 'grafico', 'excel']
-
-    def icon(self):
-        return QIcon(os.path.join(
-            os.path.dirname(os.path.dirname(__file__)), 'Icons', 'indices.png'
-        ))
 
     def shortHelpString(self):
         return (
@@ -158,20 +150,20 @@ class FirmaEspectral(QgsProcessingAlgorithm):
         self.addParameter(
             QgsProcessingParameterRasterLayer(
                 self.RASTER,
-                'Imagen multiespectral (reflectancia superficie)',
+                self.tr('Imagen multiespectral (reflectancia superficie)'),
             )
         )
         self.addParameter(
             QgsProcessingParameterFeatureSource(
                 self.PUNTOS,
-                'Capa de puntos de cobertura',
+                self.tr('Capa de puntos de cobertura'),
                 types=[QgsProcessing.TypeVectorPoint],
             )
         )
         self.addParameter(
             QgsProcessingParameterField(
                 self.CAMPO,
-                'Campo de clase / cobertura',
+                self.tr('Campo de clase / cobertura'),
                 parentLayerParameterName=self.PUNTOS,
                 type=QgsProcessingParameterField.String,
                 defaultValue='Clase',
@@ -180,7 +172,7 @@ class FirmaEspectral(QgsProcessingAlgorithm):
         self.addParameter(
             QgsProcessingParameterEnum(
                 self.SENSOR,
-                'Sensor / satélite',
+                self.tr('Sensor / satélite'),
                 options=list(SENSORES.keys()),
                 defaultValue=2,  # Landsat 8 por defecto
             )
@@ -188,14 +180,14 @@ class FirmaEspectral(QgsProcessingAlgorithm):
         self.addParameter(
             QgsProcessingParameterFileDestination(
                 self.EXCEL,
-                'Archivo Excel de salida (.xlsx)',
+                self.tr('Archivo Excel de salida (.xlsx)'),
                 fileFilter='Excel (*.xlsx)',
             )
         )
         self.addParameter(
             QgsProcessingParameterFileDestination(
                 self.GRAFICO,
-                'Gráfico PNG de salida',
+                self.tr('Gráfico PNG de salida'),
                 fileFilter='PNG (*.png)',
             )
         )
@@ -324,6 +316,7 @@ class FirmaEspectral(QgsProcessingAlgorithm):
 
             filas = []
             for _, punto in gdf.iterrows():
+                if 'feedback' in locals() and feedback.isCanceled(): break
                 geom = punto.geometry
                 x, y = geom.x, geom.y
                 try:
@@ -335,6 +328,7 @@ class FirmaEspectral(QgsProcessingAlgorithm):
                         'Norte': round(y, 2),
                     }
                     for band_idx, nb in enumerate(nombres_banda, start=1):
+                        if 'feedback' in locals() and feedback.isCanceled(): break
                         val = float(datos_img[band_idx][row, col]) * factor_escala
                         fila[nb] = val
                     filas.append(fila)
@@ -357,8 +351,10 @@ class FirmaEspectral(QgsProcessingAlgorithm):
 
         resumen_rows = []
         for clase, grupo in df.groupby('Clase'):
+            if 'feedback' in locals() and feedback.isCanceled(): break
             fila_res = {'Clase': clase, 'N_puntos': len(grupo)}
             for nb in cols_banda:
+                if 'feedback' in locals() and feedback.isCanceled(): break
                 vals = grupo[nb].dropna()
                 fila_res[f'{nb}_media'] = round(vals.mean(), 6) if len(vals) else np.nan
                 fila_res[f'{nb}_min']   = round(vals.min(),  6) if len(vals) else np.nan
@@ -408,6 +404,7 @@ class FirmaEspectral(QgsProcessingAlgorithm):
         leyenda_patches = []
 
         for i, clase in enumerate(clases_ordenadas):
+            if 'feedback' in locals() and feedback.isCanceled(): break
             color = COLORES[i % len(COLORES)]
             grupo = df[df['Clase'] == clase][cols_banda]
 
@@ -456,6 +453,7 @@ class FirmaEspectral(QgsProcessingAlgorithm):
 
         # Anotaciones de banda sobre el eje X
         for j, (lon, nb) in enumerate(zip(longitudes, nombres_banda)):
+            if 'feedback' in locals() and feedback.isCanceled(): break
             ax.axvline(x=lon, color='gray', linewidth=0.4, linestyle='--', alpha=0.5)
             ax.text(lon, ax.get_ylim()[0] if ax.get_ylim()[0] != 0 else -0.005,
                     nb.replace('SR_', '').replace('RS_', ''),

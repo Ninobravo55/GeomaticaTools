@@ -1,3 +1,4 @@
+from .geomaticape_algorithm import GeomaticapeAlgorithm
 # -*- coding: utf-8 -*-
 """
 vector_poligono_superpuesto.py
@@ -16,20 +17,18 @@ from qgis.core import (
 import os
 
 
-class VectorPoligonoSuperpuesto(QgsProcessingAlgorithm):
+class VectorPoligonoSuperpuesto(GeomaticapeAlgorithm):
+    _algorithm_name = "vector_poligono_superpuesto"
+    _icon_name = "poligonos_tabla.png"
     INPUT  = 'INPUT'
     OUTPUT = 'OUTPUT'
-
-    def createInstance(self): return VectorPoligonoSuperpuesto()
-    def name(self): return 'vector_poligono_superpuesto'
-    def displayName(self): return 'Polígono superpuesto propio'
-    def group(self): return 'Vector'
-    def groupId(self): return 'vector'
+    def displayName(self):
+        return self.tr('Polígono superpuesto propio')
+    def group(self):
+        return self.tr('Geoprocesamiento')
+    def groupId(self): return 'geomaticape_geoprocesamiento'
     def tags(self): return ['superposicion','overlap','poligono','solapamiento',
                             'multiparte','monoparte','topologia','validacion']
-    def icon(self):
-        return QIcon(os.path.join(os.path.dirname(os.path.dirname(__file__)),
-                                  'Icons','poligonos_tabla.png'))
     def shortHelpString(self):
         return (
             '<b>Polígono superpuesto propio</b><br>'
@@ -46,10 +45,10 @@ class VectorPoligonoSuperpuesto(QgsProcessingAlgorithm):
 
     def initAlgorithm(self, config=None):
         self.addParameter(QgsProcessingParameterFeatureSource(
-            self.INPUT, 'Capa de polígonos',
+            self.INPUT, self.tr('Capa de polígonos'),
             [QgsProcessing.TypeVectorPolygon]))
         self.addParameter(QgsProcessingParameterFeatureSink(
-            self.OUTPUT, 'Superposiciones detectadas'))
+            self.OUTPUT, self.tr('Superposiciones detectadas')))
 
     def processAlgorithm(self, parameters, context, feedback):
         source = self.parameterAsSource(parameters, self.INPUT, context)
@@ -74,6 +73,7 @@ class VectorPoligonoSuperpuesto(QgsProcessingAlgorithm):
         monopolygons = []   # lista de (orig_id, QgsGeometry monoparte)
 
         for feat in source.getFeatures():
+            if feedback.isCanceled(): break
             geom = feat.geometry()
             orig_id = feat.id()
             if geom.isMultipart():
