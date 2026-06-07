@@ -1,49 +1,30 @@
-from qgis.PyQt.QtWidgets import QAction, QMenu
+from qgis.PyQt.QtWidgets import QAction, QMenu, QMessageBox
+from qgis.PyQt.QtCore import QTranslator, QCoreApplication
 from qgis.PyQt.QtGui import QIcon
+from qgis.core import QgsApplication, QgsSettings
 import os
+import sys
+import subprocess
 
-# Conversion (factores de escala / DN -> Reflectancia)
-from .Script.firma_espectral import FirmaEspectral
-from .Script.rs_landsat_c2_l1 import RSLandSatC2L1
-from .Script.factor_landsat import FactorLandsat
-from .Script.factor_sentinel2_l1a import FactorSentinel2L1A
-from .Script.factor_sentinel2_l2a import FactorSentinel2L2A
-from .Script.factor_modis09 import FactorMODIS09
-from .Script.factor_modis11 import FactorMODIS11
-from .Script.factor_modis12 import FactorMODIS12
-from .Script.factor_modis13 import FactorMODIS13
+from .geomaticape_provider import GeomaticapeProvider
 
-# Procesamiento (analisis avanzado + clasificacion + extraccion bandas)
-from .Script.cbers04a_pansharp import CBERS04APansharp
-from .Script.landsat_pansharpening import LandsatPansharpening
-from .Script.acp_satelite import ACPSatelite
-from .Script.indices_espectrales import IndicesEspectrales
-from .Script.clasificacion_no_supervisada import ClasificacionNoSupervisada
-from .Script.clasificacion_supervisada import ClasificacionSupervisada
-from .Script.extraer_bandas_multiespectral import ExtraerBandasMultiespectral
-from .Script.combinar_bandas_nombres import CombinarBandasNombres
-from .Script.recortar_rasters_zona import RecortarRastersZona
-from .Script.tasseled_cap import TasseledCap
-from .Script.clasificar_raster import ClasificarRaster
-from .Script.reclasificar_raster import ReclasificarRaster
-from .Script.reporte_clasificacion import ReporteClasificacion
-from .Script.raster_mosaico_imagenes import RasterMosaicoImagenes
-from .Script.raster_definir_celdas_nulas import RasterDefinirCeldasNulas
+# Importar algoritmos desde el provider para evitar duplicar imports en memoria
+from .geomaticape_provider import (
+    FirmaEspectral, RSLandSatC2L1, FactorLandsat, FactorSentinel2L1A, FactorSentinel2L2A,
+    FactorMODIS09, FactorMODIS11, FactorMODIS12, FactorMODIS13, FactorMODIS43,
+    CBERS04APansharp, LandsatPansharpening, ACPSatelite, IndicesEspectrales,
+    ClasificacionNoSupervisada, ClasificacionSupervisada, ExtraerBandasMultiespectral,
+    CombinarBandasNombres, RecortarRastersZona, TasseledCap, ClasificarRaster,
+    ReclasificarRaster, ReporteClasificacion, ReporteClasificacionVectorial,
+    RasterMosaicoImagenes, RasterDefinirCeldasNulas, ReproyectarRaster,
+    CrearPoligonosTabla, EstadisticaZonalRaster, ExtraerValoresPuntuales,
+    VectorAnguloPoligono, VectorPoligonoSuperpuesto, VectorSucesionCruzada,
+    MDEDescargarMDE, MDEPuntoCotaDEM, MDECurvasNivelIntermedias,
+    GEEDescargarImagenes, GEEDescargarIndices, GEEFirmaEspectral
+)
 
-# Geoprocesamiento (vector / tabular / zonal / sampling)
-from .Script.crear_poligonos_tabla import CrearPoligonosTabla
-from .Script.estadistica_zonal_raster import EstadisticaZonalRaster
-from .Script.extraer_valores_puntuales import ExtraerValoresPuntuales
-
-# Vector — nuevas herramientas
-from .Script.vector_angulo_poligono import VectorAnguloPoligono
-from .Script.vector_poligono_superpuesto import VectorPoligonoSuperpuesto
-from .Script.vector_sucesion_cruzada import VectorSucesionCruzada
-
-# MDE — nuevas herramientas
-from .Script.mde_descargar_mde import MDEDescargarMDE
-from .Script.mde_punto_cota_dem import MDEPuntoCotaDEM
-from .Script.mde_curvas_nivel_intermedias import MDECurvasNivelIntermedias
+# GEE Auth Dialog (interfaz que no pertenece al provider)
+from .Script.gee_auth_dialog import GEEAuthDialog
 
 
 class GeomaticapePlugin:
@@ -57,140 +38,199 @@ class GeomaticapePlugin:
         self.menu_proc = None
         self.menu_geo  = None
         self.menu_post = None
-        self.menu_vec  = None
         self.menu_mde  = None
+        self.menu_gee  = None
+        self.provider = None
+        user_locale = QgsSettings().value('locale/userLocale', 'en')
+        self.locale = user_locale[0:2] if user_locale else 'en'
+        self.translator = QTranslator()
+        i18n_path = os.path.join(self.plugin_dir, 'i18n', f'geomaticape_{self.locale}.qm')
+        if os.path.exists(i18n_path):
+            self.translator.load(i18n_path)
+            QCoreApplication.installTranslator(self.translator)
+
+
+    
+    def tr(self, message):
+        return QCoreApplication.translate('GeomaticaPe', message)
+
+    def initProcessing(self):
+        self.provider = GeomaticapeProvider()
+        QgsApplication.processingRegistry().addProvider(self.provider)
 
     def initGui(self):
 
+        try:
+            from osgeo import gdal
+            major_version = int(gdal.__version__.split('.')[0])
+            if major_version < 3:
+                msg = QMessageBox()
+                msg.setIcon(QMessageBox.Warning)
+                msg.setWindowTitle("Advertencia de Compatibilidad - Geomaticape")
+                msg.setText(f"Versión de GDAL muy antigua ({gdal.__version__})")
+                msg.setInformativeText("Geomaticape Tools requiere GDAL 3.0 o superior para procesar subdatasets HDF4 (MODIS) y generar rasteres comprimidos con BIGTIFF de manera segura.\n\nEs probable que algunas herramientas fallen. Te recomendamos actualizar a QGIS 3.28 o superior.")
+                msg.setStandardButtons(QMessageBox.Ok)
+                (msg.exec_() if hasattr(msg, 'exec_') else msg.exec())
+        except Exception:
+            pass
+
         logo_path = os.path.join(self.plugin_dir, "Icons", "logo_geomatica.png")
-        self.menu = QMenu("Geomaticape", self.iface.mainWindow())
+        self.menu = QMenu(self.tr("Geomaticape"), self.iface.mainWindow())
         self.menu.setIcon(QIcon(logo_path))
         self.iface.pluginMenu().addMenu(self.menu)
 
+        # Herramienta manual para instalar dependencias
+        action_deps = QAction(QIcon(os.path.join(self.plugin_dir, "Icons", "Instal.png")), self.tr("Instalar dependencias de Python..."), self.iface.mainWindow())
+        action_deps.triggered.connect(self.check_dependencies_manual)
+        self.menu.addAction(action_deps)
+        self.actions.append(action_deps)
+        self.menu.addSeparator()
+
         # ── CONVERSION ──────────────────────────────────────────
-        self.menu_conv = QMenu("Conversion", self.menu)
+        self.menu_conv = QMenu(self.tr("Conversion"), self.menu)
         self.menu_conv.setIcon(QIcon(os.path.join(self.plugin_dir, "Icons", "landsat.png")))
         self.menu.addMenu(self.menu_conv)
 
         self.menu_conv.addSeparator()
 
         # Landsat / Sentinel
-        self.add_action(self.menu_conv, "RS LandSat C2 L1 (SR + LST + PAN)",
+        self.add_action(self.menu_conv, self.tr("Factor escala Landsat C2 L1"),
                         "Icons/landsat.png", RSLandSatC2L1)
-        self.add_action(self.menu_conv, "Factor escala Landsat C2 L2",
+        self.add_action(self.menu_conv, self.tr("Factor escala Landsat C2 L2"),
                         "Icons/landsat.png", FactorLandsat)
-        self.add_action(self.menu_conv, "Factor escala Sentinel2 L1A",
+        self.add_action(self.menu_conv, self.tr("Factor escala Sentinel2 L1A"),
                         "Icons/sentinel2l1a.png", FactorSentinel2L1A)
-        self.add_action(self.menu_conv, "Factor escala Sentinel2 L2A",
+        self.add_action(self.menu_conv, self.tr("Factor escala Sentinel2 L2A"),
                         "Icons/sentinel2l2a.png", FactorSentinel2L2A)
 
         self.menu_conv.addSeparator()
 
         # MODIS — 4 herramientas independientes
-        self.add_action(self.menu_conv, "Factor escala MODIS 09 (Reflectancia Superficial)",
+        self.add_action(self.menu_conv, self.tr("Factor escala MODIS 09 (Reflectancia Superficial)"),
                         "Icons/indices.png", FactorMODIS09)
-        self.add_action(self.menu_conv, "Factor escala MODIS 11 (LST °C)",
+        self.add_action(self.menu_conv, self.tr("Factor escala MODIS 11 (LST °C)"),
                         "Icons/indices.png", FactorMODIS11)
-        self.add_action(self.menu_conv, "Factor escala MODIS 12 (Cobertura del Suelo)",
+        self.add_action(self.menu_conv, self.tr("Factor escala MODIS 12 (Cobertura del Suelo)"),
                         "Icons/clasificacion.png", FactorMODIS12)
-        self.add_action(self.menu_conv, "Factor escala MODIS 13 (NDVI / EVI)",
+        self.add_action(self.menu_conv, self.tr("Factor escala MODIS 13 (NDVI / EVI)"),
                         "Icons/indices.png", FactorMODIS13)
+        self.add_action(self.menu_conv, self.tr("Factor escala MODIS 43 (BRDF / Albedo / NBAR)"),
+                        "Icons/indices.png", FactorMODIS43)
 
         self.menu.addSeparator()
 
         # ── PROCESAMIENTO ────────────────────────────────────────
-        self.menu_proc = QMenu("Procesamiento", self.menu)
+        self.menu_proc = QMenu(self.tr("Procesamiento"), self.menu)
         self.menu_proc.setIcon(QIcon(os.path.join(self.plugin_dir, "Icons", "acp.png")))
         self.menu.addMenu(self.menu_proc)
 
-        self.add_action(self.menu_proc, "CBERS-04A Pansharpening 2m",
+        self.add_action(self.menu_proc, self.tr("CBERS-04A Pansharpening 2m"),
                         "Icons/CBERS04A.png", CBERS04APansharp)
-        self.add_action(self.menu_proc, "Landsat Pansharpening 30m -> 15m (Weighted Brovey)",
+        self.add_action(self.menu_proc, self.tr("Landsat Pansharpening 30m -> 15m (Weighted Brovey)"),
                         "Icons/landsat.png", LandsatPansharpening)
-        self.add_action(self.menu_proc, "ACP Multiespectral (cualquier satelite)",
+        self.add_action(self.menu_proc, self.tr("ACP Multiespectral (cualquier satelite)"),
                         "Icons/acp.png", ACPSatelite)
-        self.add_action(self.menu_proc, "Tasseled Cap (Brightness · Greenness · Wetness)",
+        self.add_action(self.menu_proc, self.tr("Tasseled Cap (Brightness · Greenness · Wetness)"),
                         "Icons/indices.png", TasseledCap)
-        self.add_action(self.menu_proc, "Indices espectrales (NDVI, SAVI, EVI, NDWI...)",
+        self.add_action(self.menu_proc, self.tr("Indices espectrales (NDVI, SAVI, EVI, NDWI...)"),
                         "Icons/indices.png", IndicesEspectrales)
-        self.add_action(self.menu_proc, "Extraer bandas de imagenes multiespectrales",
+        self.add_action(self.menu_proc, self.tr("Extraer bandas de imagenes multiespectrales"),
                         "Icons/extraer_bandas.png", ExtraerBandasMultiespectral)
-        self.add_action(self.menu_proc, "Combinar bandas con nombres (Red, NIR, SWIR1...)",
+        self.add_action(self.menu_proc, self.tr("Combinar bandas con nombres (Red, NIR, SWIR1...)"),
                         "Icons/combinar_bandas.png", CombinarBandasNombres)
-        self.add_action(self.menu_proc, "Recortar raster por zona de estudio (cutline / bbox)",
+        self.add_action(self.menu_proc, self.tr("Recortar raster por zona de estudio (cutline / bbox)"),
                         "Icons/poligonos_tabla.png", RecortarRastersZona)
-        self.add_action(self.menu_proc, "Firma espectral (Landsat 5/7/8/9 · Sentinel-2 · ASTER)",
+        self.add_action(self.menu_proc, self.tr("Reproyectar raster"),
+                        "Icons/indices.png", ReproyectarRaster)
+        self.add_action(self.menu_proc, self.tr("Firma espectral (Landsat 5/7/8/9 · Sentinel-2 · ASTER)"),
                         "Icons/indices.png", FirmaEspectral)
 
         self.menu_proc.addSeparator()
 
-        self.add_action(self.menu_proc, "Clasificacion no supervisada (K-Means, GMM, ISODATA, Birch)",
+        self.add_action(self.menu_proc, self.tr("Clasificacion no supervisada (K-Means, GMM, ISODATA, Birch)"),
                         "Icons/clasificacion.png", ClasificacionNoSupervisada)
-        self.add_action(self.menu_proc, "Clasificacion supervisada y validacion",
+        self.add_action(self.menu_proc, self.tr("Clasificacion supervisada y validacion"),
                         "Icons/clasif_supervisada.png", ClasificacionSupervisada)
-        self.add_action(self.menu_proc, "Mosaico de imagenes",
+        self.add_action(self.menu_proc, self.tr("Mosaico de imagenes"),
                         "Icons/indices.png", RasterMosaicoImagenes)
-        self.add_action(self.menu_proc, "Definir celdas nulas",
+        self.add_action(self.menu_proc, self.tr("Definir celdas nulas"),
                         "Icons/indices.png", RasterDefinirCeldasNulas)
 
 
         self.menu.addSeparator()
 
         # ── POSTPROCESAMIENTO ────────────────────────────────────
-        self.menu_post = QMenu("PostProcesamiento", self.menu)
+        self.menu_post = QMenu(self.tr("PostProcesamiento"), self.menu)
         self.menu_post.setIcon(QIcon(os.path.join(self.plugin_dir, "Icons", "clasificacion.png")))
         self.menu.addMenu(self.menu_post)
 
-        self.add_action(self.menu_post, "Clasificar raster por rangos (min / max / valor)",
+        self.add_action(self.menu_post, self.tr("Clasificar raster por rangos (min / max / valor)"),
                         "Icons/clasificacion.png", ClasificarRaster)
-        self.add_action(self.menu_post, "Reclasificar raster (remapeo de valores)",
+        self.add_action(self.menu_post, self.tr("Reclasificar raster (remapeo de valores)"),
                         "Icons/clasificacion.png", ReclasificarRaster)
-        self.add_action(self.menu_post, "Reporte de clasificacion (area · porcentaje · estadisticas)",
+        self.add_action(self.menu_post, self.tr("Reporte de clasificacion (area · porcentaje · estadisticas)"),
                         "Icons/zonal_raster.png", ReporteClasificacion)
+        self.add_action(self.menu_post, self.tr("Reporte clasificacion vectorial (area y graficos)"),
+                        "Icons/zonal_raster.png", ReporteClasificacionVectorial)
         
         self.menu.addSeparator()
 
         # ── GEOPROCESAMIENTO ─────────────────────────────────────
-        self.menu_geo = QMenu("Geoprocesamiento", self.menu)
+        self.menu_geo = QMenu(self.tr("Geoprocesamiento"), self.menu)
         self.menu_geo.setIcon(QIcon(os.path.join(self.plugin_dir, "Icons", "poligonos_tabla.png")))
         self.menu.addMenu(self.menu_geo)
 
-        self.add_action(self.menu_geo, "Crear poligonos a partir de tabla (CSV/XLSX/TXT)",
+        self.add_action(self.menu_geo, self.tr("Crear poligonos a partir de tabla (CSV/XLSX/TXT)"),
                         "Icons/poligonos_tabla.png", CrearPoligonosTabla)
-        self.add_action(self.menu_geo, "Estadistica zonal raster (Excel/CSV)",
+        self.add_action(self.menu_geo, self.tr("Estadistica zonal raster (Excel/CSV)"),
                         "Icons/zonal_raster.png", EstadisticaZonalRaster)
-        self.add_action(self.menu_geo, "Extraer valores puntuales de multiples raster",
+        self.add_action(self.menu_geo, self.tr("Extraer valores puntuales de multiples raster"),
                         "Icons/extraer_valores.png", ExtraerValoresPuntuales)
 
-        self.menu.addSeparator()
-
-        # ── VECTOR ───────────────────────────────────────────────
-        self.menu_vec = QMenu("Vector", self.menu)
-        self.menu_vec.setIcon(QIcon(os.path.join(self.plugin_dir, "Icons", "poligonos_tabla.png")))
-        self.menu.addMenu(self.menu_vec)
-
-        self.add_action(self.menu_vec, "Calcular angulo de poligono",
+        self.add_action(self.menu_geo, self.tr("Calcular angulo de poligono"),
                         "Icons/poligonos_tabla.png", VectorAnguloPoligono)
-        self.add_action(self.menu_vec, "Poligono superpuesto propio",
+        self.add_action(self.menu_geo, self.tr("Poligono superpuesto propio"),
                         "Icons/poligonos_tabla.png", VectorPoligonoSuperpuesto)
-        self.add_action(self.menu_vec, "Secciones transversales",
+        self.add_action(self.menu_geo, self.tr("Secciones transversales"),
                         "Icons/poligonos_tabla.png", VectorSucesionCruzada)
 
         self.menu.addSeparator()
 
         # ── MDE ──────────────────────────────────────────────────
-        self.menu_mde = QMenu("MDE", self.menu)
+        self.menu_mde = QMenu(self.tr("MDE"), self.menu)
         self.menu_mde.setIcon(QIcon(os.path.join(self.plugin_dir, "Icons", "extraer_valores.png")))
         self.menu.addMenu(self.menu_mde)
 
-        self.add_action(self.menu_mde, "Descargar MDE",
+        self.add_action(self.menu_mde, self.tr("Descargar MDE"),
                         "Icons/extraer_valores.png", MDEDescargarMDE)
-        #self.add_action(self.menu_mde, "Establecer coordenada Z desde MDE",
+        #self.add_action(self.menu_mde, self.tr("Establecer coordenada Z desde MDE"),
         #                "Icons/extraer_valores.png", MDEEstablecerZdesdeMDE)
-        self.add_action(self.menu_mde, "Generar elevaciones puntuales",
+        self.add_action(self.menu_mde, self.tr("Generar elevaciones puntuales"),
                         "Icons/extraer_valores.png", MDEPuntoCotaDEM)
-        self.add_action(self.menu_mde, "Extraer curvas de nivel intermedias",
+        self.add_action(self.menu_mde, self.tr("Extraer curvas de nivel intermedias"),
                         "Icons/extraer_valores.png", MDECurvasNivelIntermedias)
+
+        self.menu.addSeparator()
+
+        # ── DESCARGA GEE ──────────────────────────────────────────
+        self.menu_gee = QMenu(self.tr("Descarga GEE"), self.menu)
+        self.menu_gee.setIcon(QIcon(os.path.join(self.plugin_dir, "Icons", "landsat.png")))
+        self.menu.addMenu(self.menu_gee)
+
+        # Autenticación global GEE
+        action_auth = QAction(QIcon(os.path.join(self.plugin_dir, "Icons", "landsat.png")), self.tr("Autenticar Google Earth Engine"), self.iface.mainWindow())
+        action_auth.triggered.connect(self.run_gee_auth)
+        self.menu_gee.addAction(action_auth)
+        self.actions.append(action_auth)
+        
+        self.menu_gee.addSeparator()
+
+        self.add_action(self.menu_gee, self.tr("Descargar imagenes Landsat / Sentinel-2"),
+                        "Icons/landsat.png", GEEDescargarImagenes)
+        self.add_action(self.menu_gee, self.tr("Descargar indices espectrales (Landsat / Sentinel-2)"),
+                        "Icons/indices.png", GEEDescargarIndices)
+        self.add_action(self.menu_gee, self.tr("Firma espectral profesional (GEE)"),
+                        "Icons/indices.png", GEEFirmaEspectral)
 
     def add_action(self, parent_menu, text, icon_path, tool_class):
         icon   = QIcon(os.path.join(self.plugin_dir, icon_path))
@@ -198,6 +238,10 @@ class GeomaticapePlugin:
         action.triggered.connect(lambda: tool_class().run())
         parent_menu.addAction(action)
         self.actions.append(action)
+
+    def run_gee_auth(self):
+        dlg = GEEAuthDialog(self.iface.mainWindow())
+        dlg.exec_() if hasattr(dlg, 'exec_') else dlg.exec()
 
     def unload(self):
         if self.menu:
@@ -207,5 +251,64 @@ class GeomaticapePlugin:
             self.menu_proc = None
             self.menu_geo  = None
             self.menu_post = None
-            self.menu_vec  = None
             self.menu_mde  = None
+            self.menu_gee  = None
+            
+        if self.provider:
+            QgsApplication.processingRegistry().removeProvider(self.provider)
+            self.provider = None
+        if hasattr(self, 'translator') and self.translator:
+            QCoreApplication.removeTranslator(self.translator)
+            self.translator = None
+
+
+    def check_dependencies_manual(self):
+        missing = []
+        try:
+            import sklearn
+        except ImportError:
+            missing.append("scikit-learn")
+            
+        try:
+            import pandas
+        except ImportError:
+            missing.append("pandas")
+            
+        try:
+            import openpyxl
+        except ImportError:
+            missing.append("openpyxl")
+            
+        try:
+            import xgboost
+        except ImportError:
+            missing.append("xgboost")
+            
+        try:
+            import catboost
+        except ImportError:
+            missing.append("catboost")
+            
+        try:
+            import matplotlib
+        except ImportError:
+            missing.append("matplotlib")
+            
+        if missing:
+            msgBox = QMessageBox(self.iface.mainWindow())
+            msgBox.setIcon(QMessageBox.Warning)
+            msgBox.setWindowTitle("Geomaticape Tools - Instalar Dependencias")
+            msgBox.setText(f"Faltan instalar las siguientes bibliotecas de Python:\n\n{', '.join(missing)}\n\n¿Desea instalarlas ahora? (Nota: QGIS se congelará temporalmente mientras descarga los archivos).")
+            msgBox.setStandardButtons(QMessageBox.Yes | QMessageBox.No)
+            msgBox.setDefaultButton(QMessageBox.Yes)
+            
+            # Use exec_() for PyQt5 compatibility or exec() for PyQt6
+            if (msgBox.exec_() if hasattr(msgBox, 'exec_') else msgBox.exec()) == QMessageBox.Yes:
+                self.install_dependencies(missing)
+        else:
+            QMessageBox.information(self.iface.mainWindow(), "Dependencias Completas", "Todas las dependencias de Python requeridas ya están instaladas. No necesitas hacer nada más.")
+
+    def install_dependencies(self, missing):
+        from .Script.install_deps_dialog import InstallDepsDialog
+        self.deps_dialog = InstallDepsDialog(missing, self.iface.mainWindow())
+        self.deps_dialog.show()

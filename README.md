@@ -1,6 +1,6 @@
 # Geomaticape Tools 🛰️📐
 
-[![QGIS Version](https://img.shields.io/badge/QGIS-3.40%20--%204.99-blue.svg?logo=qgis&logoColor=white&color=589632)](https://qgis.org/)
+[![QGIS Version](https://img.shields.io/badge/QGIS-3.28%20--%204.99-blue.svg?logo=qgis&logoColor=white&color=589632)](https://qgis.org/)
 [![Python Version](https://img.shields.io/badge/Python-3.9%2B-blue.svg?logo=python&logoColor=white&color=3776AB)](https://www.python.org/)
 [![License](https://img.shields.io/badge/License-GPL%20v2%2B-lightgrey.svg)](LICENSE)
 [![Website](https://img.shields.io/badge/Website-geomatica.pe-darkgreen.svg?logo=internet-explorer&logoColor=white)](https://www.geomatica.pe/)
@@ -20,7 +20,6 @@ graph TD
     A --> C(Procesamiento Satelital)
     A --> D(Post-Procesamiento)
     A --> E(Geoprocesamiento)
-    A --> F(Vectorial Avanzado)
     A --> G(MDE / Elevación)
     A --> H(Descarga GEE)
 ```
@@ -92,7 +91,7 @@ Módulos robustos para el modelamiento y mapeo temático del territorio:
 El complemento es totalmente compatible con la capa de compatibilidad de **Qt5 (PyQt5)** y **Qt6 (PyQt6)**, lo que permite su funcionamiento tanto en versiones LTR como modernas de QGIS.
 
 ### Compatibilidad
-*   **QGIS**: Versiones desde la **3.40 hasta la 4.99**.
+*   **QGIS**: Versiones desde la **3.28 hasta la 4.99**.
 *   **Sistemas Operativos**: Windows, Linux, macOS.
 
 ### 📦 Dependencias de Python
@@ -107,6 +106,8 @@ El plugin requiere de algunas librerías estándar y externas para ejecutar los 
 | **`scikit-learn`** | Machine Learning (Clasificación Supervisada / No Supervisada / ACP) | **Requerido (Instalar)** |
 | **`pandas`** | Lectura y manipulación de datos tabulares (Excel, CSV) | **Requerido (Instalar)** |
 | **`openpyxl`** | Exportación avanzada de reportes enriquecidos a Excel (.xlsx) | **Requerido (Instalar)** |
+| **`xgboost`** | Clasificación Supervisada (opcional) | **Requerido (Instalar)** |
+| **`catboost`** | Clasificación Supervisada (opcional) | **Requerido (Instalar)** |
 
 ---
 
@@ -131,13 +132,13 @@ Si prefieres realizar la instalación manualmente:
 *   **En Windows (OSGeo4W Shell)**:
     Abre la aplicación **OSGeo4W Shell** (como Administrador) y ejecuta:
     ```bash
-    python -m pip install --upgrade scikit-learn pandas openpyxl
+    python -m pip install --upgrade scikit-learn pandas openpyxl xgboost catboost
     ```
 
 *   **En Linux / macOS (Terminal del Sistema)**:
     Usa el ejecutable de Python correspondiente a tu entorno de QGIS:
     ```bash
-    pip install --upgrade scikit-learn pandas openpyxl
+    pip install --upgrade scikit-learn pandas openpyxl xgboost catboost
     ```
 
 ---

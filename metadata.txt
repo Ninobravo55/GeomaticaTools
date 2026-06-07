@@ -1,8 +1,8 @@
 [general]
 name=Geomaticape Tools
 description=Landsat C2 L1/L2, Sentinel-2, CBERS-04A, MODIS 09/11/12/13 scale factor per product independently, PCA, spectral indices, supervised + unsupervised classification, band extraction, vector geoprocessing, zonal statistics and multi-point sampling
-version=1.8
-qgisMinimumVersion=3.40
+version=1.10.0
+qgisMinimumVersion=3.28
 qgisMaximumVersion=4.99
 author=Geomatica Ambiental
 email=nino@geomatica.pe
@@ -12,33 +12,60 @@ about=GeomaticaPE is a QGIS plugin developed by Geomatica Ambiental to automate
     preprocessing and analysis of multispectral satellite imagery and to
     support common geoprocessing tasks.
 
-    Tools organized into three groups:
+    Tools organized into 7 groups:
 
     [Conversion]
-    - RS Landsat C2 L1 (SR + LST + PAN, autodetects MSS/TM/ETM/OLI)
-    - Landsat C2 L2 scale factor
-    - Sentinel-2 L1A scale factor
-    - Sentinel-2 L2A scale factor
+    - Factor Escala LandSat C2 L1 (SR + LST + PAN)
+    - Factor escala Landsat C2 L2 (SR + LST)
+    - Factor de escala Sentinel-2 L1C (10m)
+    - Factor de escala Sentinel-2 L2A (10m)
+    - Factor escala MODIS 09 (Reflectancia Superficial)
+    - Factor escala MODIS 11 (LST C)
+    - Factor escala MODIS 12 (Cobertura del Suelo)
+    - Factor escala MODIS 13 (NDVI / EVI)
 
-    [Processing]
+    [Procesamiento]
+    - ACP Multiespectral (cualquier satelite)
     - CBERS-04A Pansharpening Brovey 2m
-    - Landsat Pansharpening 30m -> 15m (Weighted Brovey)
-    - Multispectral PCA
-    - Spectral indices (17 indices)
-    - Extract bands from multispectral images:
-      detects number of bands
-    - Clip raster by study area:
-    - Combine bands with names
-    - Supervised classification and validation (DT/RF/NB/MLP/KNN).
-    
-    [Geoprocessing]
-    - Create polygons from table (CSV/TXT/XLS/XLSX)
-    - Raster zonal statistics (Excel/CSV)
-    - Extract point values from multiple rasters
+    - Clasificacion no supervisada (K-Means / GMM / ISODATA / Birch)
+    - Clasificacion supervisada y validacion
+    - Definir celdas nulas
+    - Extraer bandas de imagenes multiespectrales
+    - Firma espectral (Landsat 5/7/8/9 / Sentinel-2 / ASTER)
+    - Indices espectrales (NDVI, SAVI, EVI, NDWI, NBR, NDSI...)
+    - Mosaico de imagenes
+    - Reproyectar raster
+    - Tasseled Cap (Brightness / Greenness / Wetness)
+
+    [PostProcesamiento]
+    - Clasificar raster por rangos
+    - Reclasificar raster (remapeo de valores)
+    - Reporte clasificacion vectorial (area y graficos)
+    - Reporte de clasificacion raster (area, porcentaje, estadisticas)
+
+    [Geoprocesamiento]
+    - Calcular angulo de poligono
+    - Crear poligonos a partir de tabla
+    - Estadistica zonal raster (Excel/CSV)
+    - Extraer valores puntuales de multiples raster
+    - Poligono superpuesto propio
+    - Secciones transversales
+
+    [Descarga GEE]
+    - Descargar imagenes Landsat / Sentinel-2
+    - Descargar indices espectrales (GEE)
+    - Firma espectral profesional (GEE)
+
+    [MDE]
+    - Descargar MDE
+    - Generar curvas de nivel intermedias
+    - Generar elevaciones puntuales
+
+
 
     COMPATIBILITY:
     - Qt5 (PyQt5) and Qt6 (PyQt6) via qgis.PyQt compatibility layer
-    - QGIS 3.40 to 4.99
+    - QGIS 3.28 to 4.99
 
     REQUIREMENTS - Python modules bundled with QGIS (no installation needed):
     - numpy           (all tools)
@@ -57,9 +84,11 @@ about=GeomaticaPE is a QGIS plugin developed by Geomatica Ambiental to automate
                       Extract Point Values (export .xlsx),
                       Classification Report (export .xlsx with charts),
                       Create Polygons from Table (read .xlsx)
+    - xgboost         (Optional) REQUIRED by: Supervised Classification (XGBoost)
+    - catboost        (Optional) REQUIRED by: Supervised Classification (CatBoost)
 
     Install all external dependencies (run once):
-       python -m pip install --upgrade scikit-learn pandas openpyxl
+       python -m pip install --upgrade scikit-learn pandas openpyxl xgboost catboost
 
     Developed and maintained by:
     Geomatica Ambiental - www.geomatica.pe
@@ -80,6 +109,6 @@ server=False
 experimental=False
 deprecated=False
 
-changelog=1.8
+changelog=1.10.0
 - [Processing] Spectral Signature: Landsat 5/7/8/9, Sentinel-2, ASTER L1T
   Extraction by class, mean/min/max, PNG chart, Excel export
